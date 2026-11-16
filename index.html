@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#071b2b">
+<title>倾斜海面 · Gyro Sea</title>
+<style>
+:root{color-scheme:dark;--ink:#e8f5f7;--muted:#9ab5c3}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071b2b;font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC",sans-serif;color:var(--ink);touch-action:none}
+body{background:radial-gradient(ellipse at 50% 15%,#143c50 0%,#0a2638 48%,#061522 100%)}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
+.ui{position:fixed;inset:0;pointer-events:none;padding:calc(env(safe-area-inset-top) + 22px) 22px calc(env(safe-area-inset-bottom) + 22px)}
+.top{display:flex;justify-content:space-between;align-items:flex-start}
+h1{font-size:14px;letter-spacing:.22em;font-weight:650;margin:0 0 7px}
+.sub{font-size:11px;color:var(--muted);letter-spacing:.08em}
+.status{font-size:10px;color:#a8cbd4;border:1px solid #5b899477;border-radius:99px;padding:7px 10px;background:#09223588;backdrop-filter:blur(8px)}
+.bottom{position:absolute;left:22px;right:22px;bottom:calc(env(safe-area-inset-bottom) + 24px);display:flex;align-items:end;justify-content:space-between;gap:12px}
+.hint{max-width:220px;font-size:11px;line-height:1.65;color:#a8c1cb;text-shadow:0 1px 8px #00121e}
+.controls{display:flex;gap:8px;pointer-events:auto}
+button{border:1px solid #76a6b477;background:#0a293acc;color:#e7f5f7;border-radius:99px;padding:11px 14px;font-size:11px;letter-spacing:.04em;backdrop-filter:blur(10px)}
+button:active{transform:scale(.97);background:#17445a}
+#permission{position:fixed;inset:0;display:grid;place-items:center;background:#061522cc;backdrop-filter:blur(12px);padding:28px;z-index:3}
+.panel{width:min(340px,100%);border:1px solid #6fa2b455;background:linear-gradient(145deg,#12364aee,#081c2bee);border-radius:22px;padding:26px 22px;text-align:center;box-shadow:0 24px 80px #0008}
+.panel .orb{width:54px;height:54px;border:1px solid #9ed9e877;border-radius:50%;margin:0 auto 18px;display:grid;place-items:center;color:#b7eff0;font-size:22px}
+.panel h2{font-size:18px;margin:0 0 10px;font-weight:600}
+.panel p{font-size:12px;line-height:1.75;color:#a9c2cc;margin:0 0 20px}
+.panel button{background:#b8e5e4;color:#062331;border:0;padding:12px 22px;font-weight:650}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 72px);transform:translateX(-50%);font-size:11px;color:#d7edf0;background:#08273a;border:1px solid #6da1ad55;border-radius:99px;padding:8px 13px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+@media (orientation:landscape){.ui{padding-left:28px;padding-right:28px}.bottom{left:28px;right:28px}}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="ui">
+  <div class="top">
+    <div><h1>GYRO SEA</h1><div class="sub">A SMALL OCEAN IN YOUR HAND</div></div>
+    <div class="status" id="state">触控模式 · 等待陀螺仪</div>
+  </div>
+  <div class="bottom">
+    <div class="hint" id="hint">倾斜手机，让海水向低处涌动。海面会撞上屏幕边缘，再回弹成细小的波浪。</div>
+    <div class="controls"><button id="recenter">重置水平</button><button id="motion">启用体感</button></div>
+  </div>
+</div>
+<div id="permission">
+  <div class="panel">
+    <div class="orb">≈</div>
+    <h2>把一片海握在手里</h2>
+    <p>轻轻转动手机，观察海水如何倾斜、涌动，并在屏幕边缘形成回弹波。<br>建议关闭屏幕旋转锁定，并在 Safari / Chrome 中打开。</p>
+    <button id="start">进入海面</button>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+(() => {
+ const canvas=document.getElementById('scene'),ctx=canvas.getContext('2d',{alpha:false});
+ const stateEl=document.getElementById('state'),hint=document.getElementById('hint');
+ const N=180, h=new Float32Array(N),v=new Float32Array(N),rest=new Float32Array(N);
+ let w=0,H=0,dpr=1,tilt=0,targetTilt=0,orientation=0,baseline=null,gyro=false,last=0,energy=0;
+ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+ function resize(){dpr=Math.min(devicePixelRatio||1,2);w=innerWidth;H=innerHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(H*dpr);canvas.style.width=w+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);for(let i=0;i<N;i++){h[i]=H*.57;rest[i]=H*.57;v[i]=0;}}
+ addEventListener('resize',resize);resize();
+ function showToast(s){const t=document.getElementById('toast');t.textContent=s;t.style.opacity=1;clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>t.style.opacity=0,1800);}
+ function onOrientation(e){
+   if(e.gamma==null||e.beta==null)return;
+   // gamma: left/right roll; beta: front/back pitch. Screen rotation is compensated.
+   let g=e.gamma, b=e.beta;
+   if(screen.orientation&&Math.abs(screen.orientation.angle)===90){const old=g;g=b*(screen.orientation.angle===90?1:-1);b=old*(screen.orientation.angle===90?-1:1);}
+   if(baseline===null)baseline={g,b};
+   const dg=clamp((g-baseline.g)/32,-1,1);
+   const db=clamp((b-baseline.b)/32,-1,1);
+   targetTilt=clamp(dg*.78+db*.48,-1,1);
+   gyro=true;stateEl.textContent='陀螺仪已连接';
+ }
+ async function enableMotion(){
+   try{
+     if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+       const p=await DeviceOrientationEvent.requestPermission();
+       if(p!=='granted'){showToast('未获得体感权限，仍可触控体验');return;}
+     }
+     addEventListener('deviceorientation',onOrientation,true);
+     showToast('体感已开启：缓慢倾斜手机');
+     document.getElementById('motion').textContent='体感已开启';
+   }catch(e){showToast('无法读取体感，试试 Safari / HTTPS');}
+ }
+ document.getElementById('start').addEventListener('click',()=>{document.getElementById('permission').style.display='none';enableMotion();});
+ document.getElementById('motion').addEventListener('click',enableMotion);
+ document.getElementById('recenter').addEventListener('click',()=>{baseline=null;targetTilt=0;showToast('已重新校准水平位置');});
+ // Touch fallback: drag horizontally to tilt the virtual vessel.
+ let dragging=false,lastX=0;
+ canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;canvas.setPointerCapture(e.pointerId)});
+ canvas.addEventListener('pointermove',e=>{if(dragging&&!gyro){targetTilt=clamp(targetTilt+(e.clientX-lastX)/Math.max(180,w*.7),-1,1);lastX=e.clientX}});
+ canvas.addEventListener('pointerup',()=>dragging=false);
+ canvas.addEventListener('pointercancel',()=>dragging=false);
+ function update(dt){
+   tilt+=(targetTilt-tilt)*Math.min(1,dt*3.8);
+   // The water is a damped 1-D shallow-water surface. Gravity changes its equilibrium slope;
+   // wave propagation and endpoint reflection approximate sloshing against the vessel walls.
+   const mid=H*.57, slope=tilt*w*.19;
+   for(let i=0;i<N;i++){
+     const x=i/(N-1)-.5;
+     const equilibrium=mid+slope*x;
+     const left=h[i>0?i-1:i],right=h[i<N-1?i+1:i];
+     const lap=left+right-2*h[i];
+     const force=24*lap - 19*(h[i]-equilibrium) - 5.2*v[i];
+     v[i]+=force*dt;
+     h[i]+=v[i]*dt;
+   }
+   // Stronger edge response gives a visible wall impact and reflected wave.
+   for(const i of [0,N-1]){v[i]+=(rest[i]-h[i])*.12*dt*60;v[i]*=.985;}
+   // Keep the total water volume approximately constant.
+   let avg=0;for(let i=0;i<N;i++)avg+=h[i];avg/=N;
+   const correction=(mid-avg)*.035;
+   for(let i=0;i<N;i++)h[i]+=correction;
+   energy=clamp(Math.abs(tilt)*.7+Math.abs(v[0]+v[N-1])*.001,0,1);
+ }
+ function draw(t){
+   const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#0d2c40');sky.addColorStop(.52,'#0a2639');sky.addColorStop(1,'#061827');ctx.fillStyle=sky;ctx.fillRect(0,0,w,H);
+   // Subtle distant haze and light shafts.
+   const glow=ctx.createRadialGradient(w*.5,H*.42,10,w*.5,H*.42,Math.max(w,H)*.72);glow.addColorStop(0,'#2c708044');glow.addColorStop(1,'#071b2b00');ctx.fillStyle=glow;ctx.fillRect(0,0,w,H);
+   // Vessel boundary: the screen itself acts as the container, with a fine inner rim.
+   ctx.save();ctx.beginPath();ctx.rect(0,0,w,H);ctx.clip();
+   const water=ctx.createLinearGradient(0,H*.38,0,H);water.addColorStop(0,'#4eb6c2');water.addColorStop(.12,'#16839c');water.addColorStop(.55,'#07516e');water.addColorStop(1,'#052c49');
+   ctx.beginPath();ctx.moveTo(0,H);ctx.lineTo(0,h[0]);for(let i=1;i<N;i++)ctx.lineTo(i/(N-1)*w,h[i]);ctx.lineTo(w,H);ctx.closePath();ctx.fillStyle=water;ctx.fill();
+   // Underwater light gradients.
+   ctx.globalCompositeOperation='screen';const light=ctx.createRadialGradient(w*(.5+tilt*.16),H*.78,0,w*(.5+tilt*.16),H*.78,w*.65);light.addColorStop(0,'#64d4d022');light.addColorStop(1,'#1b9cb000');ctx.fillStyle=light;ctx.fillRect(0,0,w,H);ctx.globalCompositeOperation='source-over';
+   // Main meniscus / bright crest.
+   ctx.beginPath();ctx.moveTo(0,h[0]);for(let i=1;i<N;i++)ctx.lineTo(i/(N-1)*w,h[i]);ctx.strokeStyle='#a6edf0';ctx.lineWidth=2.1;ctx.shadowColor='#75e4eb';ctx.shadowBlur=13;ctx.stroke();ctx.shadowBlur=0;
+   // Fine secondary ripple line.
+   ctx.beginPath();for(let i=0;i<N;i++){const x=i/(N-1)*w,y=h[i]+7+Math.sin(i*.09+t*.001)*2.2;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.strokeStyle='#9ce3e433';ctx.lineWidth=1;ctx.stroke();
+   // Edge impact glints: stronger when the water hits either side.
+   const impactL=clamp(Math.abs(v[0])*.09,0,1),impactR=clamp(Math.abs(v[N-1])*.09,0,1);
+   for(const [x,p] of [[2,impactL],[w-2,impactR]]){if(p>.025){const y=x<10?h[0]:h[N-1];const g=ctx.createRadialGradient(x,y,1,x,y,24+30*p);g.addColorStop(0,`rgba(188,255,255,${.65*p})`);g.addColorStop(1,'rgba(100,220,235,0)');ctx.fillStyle=g;ctx.fillRect(x-45,y-45,90,90)}}
+   ctx.restore();
+   // Minimal glass-like screen edge.
+   ctx.strokeStyle='#a3d8e01c';ctx.lineWidth=1;ctx.strokeRect(.5,.5,w-1,H-1);
+   // Floating glints move with the water.
+   for(let j=0;j<16;j++){const x=((j*83+t*.008*(j%3+1))%(w+30))-15;const idx=Math.round(x/w*(N-1));const y=h[clamp(idx,0,N-1)]+28+(j%5)*21+Math.sin(t*.001+j)*5;ctx.fillStyle=`rgba(178,239,235,${.05+(j%4)*.018})`;ctx.fillRect(x,y,2,2)}
+ }
+ function frame(ts){const dt=Math.min((ts-last)/1000||.016,.032);last=ts;update(dt);draw(ts);requestAnimationFrame(frame)}
+ requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
