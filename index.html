@@ -1,0 +1,1402 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#041a2b">
+<title>倾斜之海</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 布局：整屏海面画布，毛玻璃控件悬浮在顶部两角和底部；单一的水下世界，不做明暗切换 */
+:root{
+  --sea-0:#041a2b;
+  --sea-1:#0a3b57;
+  --sea-2:#1c8ea6;
+  --foam:#e9fbff;
+  --sun:#ffd58a;
+  --sun-ink:#3a2400;
+  --ink:#eaf6fb;
+  --ink-dim:#9fc3d3;
+  --glass:rgba(5,22,36,.62);
+  --glass-line:rgba(190,235,255,.24);
+  --ok:#6fe3a6;
+  --warn:#ffc15e;
+  --font-ui:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Noto Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;background:var(--sea-0)}
+body{
+  background:var(--sea-0);color:var(--ink);font-family:var(--font-ui);font-size:15px;line-height:1.5;
+  -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;
+}
+#sea{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--sea-0)}
+.ui{
+  position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;
+  padding-block:calc(env(safe-area-inset-top,0px) + 12px) calc(env(safe-area-inset-bottom,0px) + 14px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  box-sizing:border-box;
+}
+.ui > *{pointer-events:auto}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}
+.bar > *{pointer-events:auto}
+.chip,.icon-btn,.card,.sheet,.toast{
+  background:var(--glass);border:1px solid var(--glass-line);
+  -webkit-backdrop-filter:blur(14px) saturate(1.25);backdrop-filter:blur(14px) saturate(1.25);
+}
+.chip{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:17px;font-size:13px;color:var(--ink);letter-spacing:.02em;max-width:calc(100% - 64px)}
+.chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 8px var(--warn);flex:none}
+.chip.ok .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.icon-btn{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;color:var(--ink);cursor:pointer;padding:0;font:inherit}
+.icon-btn:active{transform:scale(.94)}
+button{font-family:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+.card{width:100%;max-width:440px;margin-inline:auto;border-radius:22px;padding:22px 20px 18px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px}
+.card h1{margin:0;font-size:30px;line-height:1.15;font-weight:800;letter-spacing:.12em;text-wrap:balance}
+.card p{margin:0;color:var(--ink-dim);font-size:14px;max-width:34em}
+.card .tip{font-size:12.5px;color:var(--ink-dim);opacity:.9}
+.btn{height:50px;border-radius:15px;border:1px solid transparent;font-size:16px;font-weight:700;letter-spacing:.06em;cursor:pointer;padding:0 18px}
+.btn.primary{background:var(--sun);color:var(--sun-ink);box-shadow:0 6px 22px rgba(255,200,110,.28)}
+.btn.primary:active{transform:translateY(1px) scale(.99)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--glass-line);height:44px;font-size:14px;font-weight:600}
+.row-btns{display:flex;flex-direction:column;gap:10px}
+.sheet{width:100%;max-width:440px;margin-inline:auto;border-radius:22px;padding:16px 18px 14px;box-sizing:border-box;max-height:62%;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+.sheet h2{margin:0 0 6px;font-size:15px;font-weight:700;letter-spacing:.08em}
+.field{display:grid;grid-template-columns:5.2em minmax(0,1fr) 3em;align-items:center;gap:10px;min-height:40px;font-size:13.5px}
+.field output{text-align:right;color:var(--ink-dim);font-variant-numeric:tabular-nums;font-size:12.5px}
+.field input[type=range]{width:100%;accent-color:var(--sun);margin:0;height:28px;touch-action:pan-x}
+.field select{grid-column:2 / 4;background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--glass-line);border-radius:10px;height:34px;padding:0 8px;font:inherit}
+.checks{display:flex;flex-wrap:wrap;gap:6px 18px;margin:4px 0 6px;font-size:13.5px}
+.checks label{display:inline-flex;align-items:center;gap:8px;min-height:36px}
+.checks input{accent-color:var(--sun);width:18px;height:18px;margin:0}
+.sheet-actions{display:flex;gap:10px;margin-top:6px}
+.sheet-actions .btn{flex:1;height:42px;font-size:14px}
+.readout{margin:8px 0 2px;font-size:12px;color:var(--ink-dim);font-variant-numeric:tabular-nums;line-height:1.6;word-break:break-all}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 62px);width:min(92vw,420px);box-sizing:border-box;border-radius:16px;padding:12px 16px;font-size:13.5px;color:var(--ink);text-align:center;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.icon-btn:active,.btn.primary:active{transform:none}}
+@media (max-height:560px){.card h1{font-size:24px}.card{padding:14px 16px;gap:10px}.sheet{max-height:80%}}
+</style>
+</head>
+<body>
+<canvas id="sea" aria-label="会随手机倾斜而流动的海面"></canvas>
+<div class="ui" id="ui">
+  <header class="bar">
+    <div class="chip" id="chip" role="status"><i class="dot"></i><span id="chipText">演示中</span></div>
+    <button class="icon-btn" id="gearBtn" type="button" aria-label="设置" aria-expanded="false" aria-controls="sheet">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+  </header>
+
+  <section class="card" id="intro" aria-labelledby="introTitle">
+    <h1 id="introTitle">倾斜之海</h1>
+    <p>倾斜、转动或晃动手机，海水会随重力流动，撞上屏幕边框时溅起水花。阳光穿过水面，在海里投下光柱。</p>
+    <div class="row-btns">
+      <button class="btn primary" id="startBtn" type="button">开启陀螺仪</button>
+      <button class="btn ghost" id="fingerBtn" type="button">先用手指玩</button>
+    </div>
+    <div class="tip" id="introTip">iPhone 会弹出一次运动与方向权限，请选择“允许”。手指模式下，按住屏幕，海水会流向手指。</div>
+  </section>
+
+  <section class="sheet" id="sheet" hidden aria-label="设置">
+    <h2>海况设置</h2>
+    <div class="field"><label for="rngWater">水量</label><input id="rngWater" type="range" min="20" max="70" step="1" value="45"><output id="outWater">45%</output></div>
+    <div class="field"><label for="rngGrav">重力</label><input id="rngGrav" type="range" min="50" max="160" step="5" value="100"><output id="outGrav">100%</output></div>
+    <div class="field"><label for="rngShake">晃动灵敏</label><input id="rngShake" type="range" min="0" max="250" step="10" value="100"><output id="outShake">100%</output></div>
+    <div class="field"><label for="rngSun">阳光</label><input id="rngSun" type="range" min="0" max="150" step="5" value="100"><output id="outSun">100%</output></div>
+    <div class="field"><label for="selQ">画质</label><select id="selQ"><option value="low">省电</option><option value="mid" selected>均衡</option><option value="high">高清</option></select></div>
+    <div class="checks">
+      <label><input id="chkFlipX" type="checkbox">翻转左右</label>
+      <label><input id="chkFlipY" type="checkbox">翻转上下</label>
+      <label><input id="chkDebug" type="checkbox">显示传感器数据</label>
+    </div>
+    <div class="readout" id="readout" hidden></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="refillBtn" type="button">重新注水</button>
+      <button class="btn ghost" id="closeBtn" type="button">完成</button>
+    </div>
+  </section>
+  <div class="toast" id="toast" hidden role="status"></div>
+</div>
+<script>
+/* ===== 流体内核：2D FLIP/PIC 粒子-网格混合求解器 =====
+   坐标：内部使用“网格坐标”(gx,gy)，屏幕坐标 = 网格坐标 + (ox,oy)。单位 CSS 像素。
+   边框：整个屏幕是容器，四角为圆角；边框外一圈网格为固体。 */
+const SOLID = 0, FLUID = 1, AIR = 2;
+const MAXHIT = 48;
+
+class Fluid {
+  constructor(W, H, q) {
+    this.q = q;                 // {hT, cap, iters}
+    this.maxP = 0; this.numP = 0;
+    this.hit = new Float32Array(MAXHIT * 5); this.hitN = 0;
+    this.stats = { speed: 0, maxSpeed: 0 };
+    this.driftK = 0.3;           // 密度漂移修正强度（每步消除压缩量的比例）
+    this.build(W, H);
+  }
+
+  /* 依据屏幕尺寸建立网格 */
+  build(W, H) {
+    const q = this.q;
+    let h = Math.max(q.hT, Math.sqrt(W * H / q.cap));
+    const cols = Math.max(12, Math.round(W / h));
+    h = W / cols;
+    const rows = Math.max(16, Math.ceil(H / h));
+    const slack = rows * h - H;
+    this.W = W; this.H = H; this.h = h; this.cols = cols; this.rows = rows;
+    this.nx = cols + 2; this.ny = rows + 2; this.n = this.ny;
+    this.ox = -h; this.oy = -h - slack * 0.5;
+    this.pr = 0.3 * h;                         // 粒子半径
+    this.cornerR = Math.min(Math.max(0.075 * Math.min(W, H), 16), 46);
+    const nc = this.nx * this.ny;
+    this.u = new Float32Array(nc); this.v = new Float32Array(nc);
+    this.du = new Float32Array(nc); this.dv = new Float32Array(nc);
+    this.pu = new Float32Array(nc); this.pv = new Float32Array(nc);
+    this.p = new Float32Array(nc);
+    this.s = new Float32Array(nc);
+    this.cellType = new Int32Array(nc);
+    this.dens = new Float32Array(nc);
+    this.restDens = 0;
+    /* 固体：外圈 + 圆角之外 */
+    const R = this.cornerR, x0 = h, x1 = (this.nx - 1) * h, y0 = h, y1 = (this.ny - 1) * h;
+    for (let i = 0; i < this.nx; i++) for (let j = 0; j < this.ny; j++) {
+      let solid = (i === 0 || j === 0 || i === this.nx - 1 || j === this.ny - 1);
+      if (!solid) {
+        const xc = (i + 0.5) * h, yc = (j + 0.5) * h;
+        let cx = null, cy = null;
+        if (xc < x0 + R) cx = x0 + R; else if (xc > x1 - R) cx = x1 - R;
+        if (yc < y0 + R) cy = y0 + R; else if (yc > y1 - R) cy = y1 - R;
+        if (cx !== null && cy !== null) {
+          const dx = xc - cx, dy = yc - cy;
+          if (dx * dx + dy * dy > R * R) solid = true;
+        }
+      }
+      this.s[i * this.n + j] = solid ? 0 : 1;
+    }
+    /* 粒子空间哈希 */
+    this.pSpacing = 2.2 * this.pr; this.pInv = 1 / this.pSpacing;
+    this.pNumX = Math.floor(this.nx * h * this.pInv) + 2;
+    this.pNumY = Math.floor(this.ny * h * this.pInv) + 2;
+    this.numCellP = new Int32Array(this.pNumX * this.pNumY);
+    this.firstCellP = new Int32Array(this.pNumX * this.pNumY + 1);
+    if (this.maxP) this.cellPIds = new Int32Array(this.maxP);
+  }
+
+  alloc(count) {
+    this.maxP = count;
+    this.pos = new Float32Array(2 * count); this.vel = new Float32Array(2 * count);
+    this.iso = new Float32Array(count); this.prevIso = new Float32Array(count);
+    this.cellPIds = new Int32Array(count);
+  }
+
+  /* 注水：在“重力下方”填充 frac 比例的容器，gx,gy 为重力方向(屏幕坐标) */
+  reset(frac, gx, gy) {
+    const h = this.h, pr = this.pr, dx = 2 * pr, dy = Math.sqrt(3) * 0.5 * dx;
+    const x0 = h + pr, x1 = (this.nx - 1) * h - pr, y0 = h + pr, y1 = (this.ny - 1) * h - pr;
+    const gl = Math.hypot(gx, gy) || 1; gx /= gl; gy /= gl;
+    const cap = Math.ceil(((x1 - x0) / dx + 1) * ((y1 - y0) / dy + 1) * 0.72) + 64;
+    if (cap > this.maxP || !this.pos) this.alloc(Math.max(cap, 256));
+    let np = 0;
+    const cxm = (x0 + x1) / 2, cym = (y0 + y1) / 2;
+    const half = Math.abs(gx) * (x1 - x0) / 2 + Math.abs(gy) * (y1 - y0) / 2;
+    const thr = half - 2 * half * frac * 1.0;      // 沿重力方向 t > thr 的部分注水（t 为沿重力的坐标）
+    let row = 0;
+    for (let y = y0; y <= y1 && np < this.maxP - 1; y += dy, row++) {
+      const off = (row & 1) ? pr : 0;
+      for (let x = x0 + off; x <= x1 && np < this.maxP - 1; x += dx) {
+        const t = (x - cxm) * gx + (y - cym) * gy;
+        if (t < thr) continue;
+        if (!this.inside(x, y)) continue;
+        this.pos[2 * np] = x + (Math.random() - 0.5) * 0.04 * h;
+        this.pos[2 * np + 1] = y + (Math.random() - 0.5) * 0.04 * h;
+        this.vel[2 * np] = 0; this.vel[2 * np + 1] = 0;
+        this.iso[np] = 0; this.prevIso[np] = 0;
+        np++;
+      }
+    }
+    this.numP = np;
+    this.restDens = 0;
+    this.markCells(); this.updateDensity();
+    this.calcRest();
+  }
+
+  inside(x, y) {
+    const R = this.cornerR, h = this.h, x0 = h, x1 = (this.nx - 1) * h, y0 = h, y1 = (this.ny - 1) * h;
+    let cx = null, cy = null;
+    if (x < x0 + R) cx = x0 + R; else if (x > x1 - R) cx = x1 - R;
+    if (y < y0 + R) cy = y0 + R; else if (y > y1 - R) cy = y1 - R;
+    if (cx === null || cy === null) return true;
+    const dx = x - cx, dy = y - cy, lim = R - this.pr;
+    return dx * dx + dy * dy <= lim * lim;
+  }
+
+  /* 屏幕尺寸变化：小变化保留水体，大变化重新注水 */
+  resize(W, H, frac, gx, gy) {
+    const sx = W / this.W, sy = H / this.H;
+    const big = Math.abs(sx - 1) > 0.25 || Math.abs(sy - 1) > 0.25;
+    const old = this.numP ? { pos: this.pos.slice(0, 2 * this.numP), vel: this.vel.slice(0, 2 * this.numP), n: this.numP, ox: this.ox, oy: this.oy } : null;
+    this.build(W, H);
+    if (big || !old) { this.reset(frac, gx, gy); return; }
+    this.cellPIds = new Int32Array(this.maxP);
+    const n = Math.min(old.n, this.maxP);
+    for (let i = 0; i < n; i++) {
+      let x = (old.pos[2 * i] + old.ox) * sx - this.ox, y = (old.pos[2 * i + 1] + old.oy) * sy - this.oy;
+      const lo = this.h + this.pr, hx = (this.nx - 1) * this.h - this.pr, hy = (this.ny - 1) * this.h - this.pr;
+      this.pos[2 * i] = Math.min(Math.max(x, lo), hx); this.pos[2 * i + 1] = Math.min(Math.max(y, lo), hy);
+      this.vel[2 * i] = old.vel[2 * i] * sx; this.vel[2 * i + 1] = old.vel[2 * i + 1] * sy;
+    }
+    this.numP = n;
+    this.markCells(); this.updateDensity(); this.calcRest();
+  }
+
+  calcRest() {
+    const n = this.n; let sum = 0, cnt = 0;
+    for (let i = 2; i < this.nx - 2; i++) for (let j = 2; j < this.ny - 2; j++) {
+      const c = i * n + j;
+      if (this.cellType[c] === FLUID && this.cellType[c - 1] === FLUID && this.cellType[c + 1] === FLUID &&
+          this.cellType[c - n] === FLUID && this.cellType[c + n] === FLUID) { sum += this.dens[c]; cnt++; }
+    }
+    this.restDens = cnt > 10 ? sum / cnt : (this.restDens || 3.2);
+  }
+
+  markCells() {
+    const n = this.n, h = this.h, inv = 1 / h, ct = this.cellType, pos = this.pos;
+    for (let i = 0; i < ct.length; i++) ct[i] = this.s[i] === 0 ? SOLID : AIR;
+    for (let k = 0; k < this.numP; k++) {
+      const xi = Math.min(Math.max(Math.floor(pos[2 * k] * inv), 0), this.nx - 1);
+      const yi = Math.min(Math.max(Math.floor(pos[2 * k + 1] * inv), 0), this.ny - 1);
+      const c = xi * n + yi; if (ct[c] === AIR) ct[c] = FLUID;
+    }
+  }
+
+  /* 每步：env = {ax,ay,Om,al,cent,eul,cor,cx,cy,flip,iters} */
+  step(dt, env) {
+    this.hitN = 0;
+    this.integrate(dt, env);
+    this.pushApart(2);
+    this.collide(env.hitMin || 380);
+    this.toGrid();
+    this.updateDensity();
+    this.solve(this.q.iters, dt, 1.9);
+    this.fromGrid(env.flip);
+  }
+
+  integrate(dt, e) {
+    const N = this.numP, pos = this.pos, vel = this.vel;
+    const Om2 = e.Om * e.Om, al = e.al, cor2 = 2 * e.cor * e.Om;
+    const rot = (Om2 * e.cent > 1e-4) || Math.abs(al * e.eul) > 1e-3 || Math.abs(cor2) > 1e-3;
+    const cx = e.cx - this.ox, cy = e.cy - this.oy;
+    const vmax = 2300, vmax2 = vmax * vmax;
+    let sp = 0, mx = 0;
+    for (let i = 0; i < N; i++) {
+      let x = pos[2 * i], y = pos[2 * i + 1], vx = vel[2 * i], vy = vel[2 * i + 1];
+      if (x !== x || y !== y || vx !== vx || vy !== vy) {            // 防 NaN
+        x = this.h * 2 + Math.random() * this.h * 3; y = this.h * 2 + Math.random() * this.h * 3; vx = 0; vy = 0;
+      }
+      let ax = e.ax, ay = e.ay;
+      if (rot) {
+        const rx = x - cx, ry = y - cy;
+        ax += e.cent * Om2 * rx + e.eul * al * ry + cor2 * vy;
+        ay += e.cent * Om2 * ry - e.eul * al * rx - cor2 * vx;
+      }
+      vx += ax * dt; vy += ay * dt;
+      const s2 = vx * vx + vy * vy;
+      if (s2 > vmax2) { const k = vmax / Math.sqrt(s2); vx *= k; vy *= k; }
+      pos[2 * i] = x + vx * dt; pos[2 * i + 1] = y + vy * dt; vel[2 * i] = vx; vel[2 * i + 1] = vy;
+      const s = Math.sqrt(s2); sp += s; if (s > mx) mx = s;
+    }
+    this.stats.speed = N ? sp / N : 0; this.stats.maxSpeed = mx;
+  }
+
+  pushApart(iters) {
+    const N = this.numP, pos = this.pos, inv = this.pInv, nxp = this.pNumX, nyp = this.pNumY;
+    const cnt = this.numCellP, first = this.firstCellP, ids = this.cellPIds;
+    cnt.fill(0);
+    for (let i = 0; i < N; i++) {
+      const xi = Math.min(Math.max(Math.floor(pos[2 * i] * inv), 0), nxp - 1), yi = Math.min(Math.max(Math.floor(pos[2 * i + 1] * inv), 0), nyp - 1);
+      cnt[xi * nyp + yi]++;
+    }
+    let acc = 0; const nc = nxp * nyp;
+    for (let i = 0; i < nc; i++) { acc += cnt[i]; first[i] = acc; }
+    first[nc] = acc;
+    for (let i = 0; i < N; i++) {
+      const xi = Math.min(Math.max(Math.floor(pos[2 * i] * inv), 0), nxp - 1), yi = Math.min(Math.max(Math.floor(pos[2 * i + 1] * inv), 0), nyp - 1);
+      ids[--first[xi * nyp + yi]] = i;
+    }
+    const md = 2 * this.pr, md2 = md * md;
+    for (let it = 0; it < iters; it++) {
+      for (let i = 0; i < N; i++) {
+        const px = pos[2 * i], py = pos[2 * i + 1];
+        const pxi = Math.floor(px * inv), pyi = Math.floor(py * inv);
+        const xa = Math.max(pxi - 1, 0), xb = Math.min(pxi + 1, nxp - 1), ya = Math.max(pyi - 1, 0), yb = Math.min(pyi + 1, nyp - 1);
+        for (let xi = xa; xi <= xb; xi++) for (let yi = ya; yi <= yb; yi++) {
+          const c = xi * nyp + yi, f = first[c], l = first[c + 1];
+          for (let k = f; k < l; k++) {
+            const id = ids[k]; if (id === i) continue;
+            let dx = pos[2 * id] - pos[2 * i], dy = pos[2 * id + 1] - pos[2 * i + 1];
+            const d2 = dx * dx + dy * dy;
+            if (d2 > md2 || d2 === 0) continue;
+            const d = Math.sqrt(d2), s = 0.5 * (md - d) / d; dx *= s; dy *= s;
+            pos[2 * i] -= dx; pos[2 * i + 1] -= dy; pos[2 * id] += dx; pos[2 * id + 1] += dy;
+          }
+        }
+      }
+    }
+  }
+
+  /* 与屏幕边框（含圆角）碰撞；高速撞击记录为事件，用于水花与波纹 */
+  collide(hitMin) {
+    const N = this.numP, pos = this.pos, vel = this.vel, h = this.h, pr = this.pr, R = this.cornerR;
+    const minX = h + pr, maxX = (this.nx - 1) * h - pr, minY = h + pr, maxY = (this.ny - 1) * h - pr;
+    const lim = R - pr, ox = this.ox, oy = this.oy, hit = this.hit;
+    for (let i = 0; i < N; i++) {
+      let x = pos[2 * i], y = pos[2 * i + 1], vx = vel[2 * i], vy = vel[2 * i + 1];
+      let nxv = 0, nyv = 0, vn = 0;
+      if (x < minX) { x = minX; if (vx < 0) { vn = -vx; nxv = 1; vx = 0; } }
+      else if (x > maxX) { x = maxX; if (vx > 0) { vn = vx; nxv = -1; vx = 0; } }
+      if (y < minY) { y = minY; if (vy < 0) { vn = Math.max(vn, -vy); nyv = 1; vy = 0; } }
+      else if (y > maxY) { y = maxY; if (vy > 0) { vn = Math.max(vn, vy); nyv = -1; vy = 0; } }
+      let cx = 0, cy = 0, corner = false;
+      if (x < minX - pr + R && y < minY - pr + R) { cx = h + R; cy = h + R; corner = true; }
+      else if (x > maxX + pr - R && y < minY - pr + R) { cx = (this.nx - 1) * h - R; cy = h + R; corner = true; }
+      else if (x < minX - pr + R && y > maxY + pr - R) { cx = h + R; cy = (this.ny - 1) * h - R; corner = true; }
+      else if (x > maxX + pr - R && y > maxY + pr - R) { cx = (this.nx - 1) * h - R; cy = (this.ny - 1) * h - R; corner = true; }
+      if (corner) {
+        const dx = x - cx, dy = y - cy, d2 = dx * dx + dy * dy;
+        if (d2 > lim * lim && d2 > 1e-6) {
+          const d = Math.sqrt(d2), nx_ = dx / d, ny_ = dy / d;
+          x = cx + nx_ * lim; y = cy + ny_ * lim;
+          const vv = vx * nx_ + vy * ny_;
+          if (vv > 0) { vx -= vv * nx_; vy -= vv * ny_; vn = Math.max(vn, vv); nxv = -nx_; nyv = -ny_; }
+        }
+      }
+      if (vn > hitMin && this.hitN < MAXHIT) {
+        const k = this.hitN++ * 5;
+        hit[k] = x + ox; hit[k + 1] = y + oy; hit[k + 2] = nxv; hit[k + 3] = nyv; hit[k + 4] = vn;
+      }
+      pos[2 * i] = x; pos[2 * i + 1] = y; vel[2 * i] = vx; vel[2 * i + 1] = vy;
+    }
+  }
+
+  toGrid() {
+    const n = this.n, h = this.h, h1 = 1 / h, h2 = 0.5 * h, nx = this.nx, ny = this.ny;
+    const u = this.u, v = this.v, du = this.du, dv = this.dv, pu = this.pu, pv = this.pv, ct = this.cellType, s = this.s;
+    pu.set(u); pv.set(v); du.fill(0); dv.fill(0); u.fill(0); v.fill(0);
+    for (let i = 0; i < ct.length; i++) ct[i] = s[i] === 0 ? SOLID : AIR;
+    const pos = this.pos, vel = this.vel, N = this.numP;
+    for (let k = 0; k < N; k++) {
+      const xi = Math.min(Math.max(Math.floor(pos[2 * k] * h1), 0), nx - 1), yi = Math.min(Math.max(Math.floor(pos[2 * k + 1] * h1), 0), ny - 1);
+      const c = xi * n + yi; if (ct[c] === AIR) ct[c] = FLUID;
+    }
+    for (let comp = 0; comp < 2; comp++) {
+      const dx = comp === 0 ? 0 : h2, dy = comp === 0 ? h2 : 0, f = comp === 0 ? u : v, d = comp === 0 ? du : dv;
+      for (let k = 0; k < N; k++) {
+        let x = Math.min(Math.max(pos[2 * k], h), (nx - 1) * h), y = Math.min(Math.max(pos[2 * k + 1], h), (ny - 1) * h);
+        const x0 = Math.min(Math.floor((x - dx) * h1), nx - 2), tx = ((x - dx) - x0 * h) * h1, x1 = Math.min(x0 + 1, nx - 2);
+        const y0 = Math.min(Math.floor((y - dy) * h1), ny - 2), ty = ((y - dy) - y0 * h) * h1, y1 = Math.min(y0 + 1, ny - 2);
+        const sx = 1 - tx, sy = 1 - ty, d0 = sx * sy, d1 = tx * sy, d2 = tx * ty, d3 = sx * ty;
+        const n0 = x0 * n + y0, n1 = x1 * n + y0, n2 = x1 * n + y1, n3 = x0 * n + y1, pv_ = vel[2 * k + comp];
+        f[n0] += pv_ * d0; d[n0] += d0; f[n1] += pv_ * d1; d[n1] += d1; f[n2] += pv_ * d2; d[n2] += d2; f[n3] += pv_ * d3; d[n3] += d3;
+      }
+      for (let i = 0; i < f.length; i++) if (d[i] > 0) f[i] /= d[i];
+    }
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const c = i * n + j, solid = ct[c] === SOLID;
+      if (solid || (i > 0 && ct[c - n] === SOLID)) u[c] = pu[c];
+      if (solid || (j > 0 && ct[c - 1] === SOLID)) v[c] = pv[c];
+    }
+  }
+
+  updateDensity() {
+    const n = this.n, h = this.h, h1 = 1 / h, h2 = 0.5 * h, nx = this.nx, ny = this.ny, d = this.dens, pos = this.pos, N = this.numP;
+    d.fill(0);
+    for (let k = 0; k < N; k++) {
+      const x = Math.min(Math.max(pos[2 * k], h), (nx - 1) * h), y = Math.min(Math.max(pos[2 * k + 1], h), (ny - 1) * h);
+      const x0 = Math.floor((x - h2) * h1), tx = ((x - h2) - x0 * h) * h1, x1 = Math.min(x0 + 1, nx - 2);
+      const y0 = Math.floor((y - h2) * h1), ty = ((y - h2) - y0 * h) * h1, y1 = Math.min(y0 + 1, ny - 2);
+      const sx = 1 - tx, sy = 1 - ty;
+      if (x0 >= 0 && y0 >= 0) d[x0 * n + y0] += sx * sy;
+      if (x1 < nx && y0 >= 0) d[x1 * n + y0] += tx * sy;
+      if (x1 < nx && y1 < ny) d[x1 * n + y1] += tx * ty;
+      if (x0 >= 0 && y1 < ny) d[x0 * n + y1] += sx * ty;
+    }
+    /* 孤立度：用于渲染飞沫。取 3×3 邻域的最大密度，水面表层粒子不会被误判成水滴 */
+    const rest = this.restDens || 3.2, inv = 1 / rest;
+    for (let k = 0; k < N; k++) {
+      const xi = Math.min(Math.max(Math.floor(pos[2 * k] * h1), 1), nx - 2), yi = Math.min(Math.max(Math.floor(pos[2 * k + 1] * h1), 1), ny - 2);
+      const c = xi * n + yi;
+      const m = Math.max(d[c], d[c - n], d[c + n], d[c - 1], d[c + 1], d[c - n - 1], d[c - n + 1], d[c + n - 1], d[c + n + 1]);
+      this.prevIso[k] = this.iso[k];
+      this.iso[k] = Math.min(Math.max((0.55 - m * inv) / 0.25, 0), 1);
+    }
+  }
+
+  solve(iters, dt, over) {
+    const n = this.n, nx = this.nx, ny = this.ny, u = this.u, v = this.v, s = this.s, ct = this.cellType, d = this.dens, p = this.p, rest = this.restDens;
+    p.fill(0); this.pu.set(u); this.pv.set(v);
+    const kk = rest > 0 ? this.driftK * this.h / dt / rest : 0;
+    for (let it = 0; it < iters; it++) {
+      for (let i = 1; i < nx - 1; i++) for (let j = 1; j < ny - 1; j++) {
+        const c = i * n + j; if (ct[c] !== FLUID) continue;
+        const l = c - n, r = c + n, b = c - 1, t = c + 1;
+        const sx0 = s[l], sx1 = s[r], sy0 = s[b], sy1 = s[t], st = sx0 + sx1 + sy0 + sy1; if (st === 0) continue;
+        let div = u[r] - u[c] + v[t] - v[c];
+        if (kk > 0) { const comp = d[c] - rest; if (comp > 0) div -= kk * comp; }
+        const pp = -div / st * over;
+        u[c] -= sx0 * pp; u[r] += sx1 * pp; v[c] -= sy0 * pp; v[t] += sy1 * pp;
+      }
+    }
+  }
+
+  fromGrid(flip) {
+    const n = this.n, h = this.h, h1 = 1 / h, h2 = 0.5 * h, nx = this.nx, ny = this.ny, ct = this.cellType, pos = this.pos, vel = this.vel, N = this.numP;
+    for (let comp = 0; comp < 2; comp++) {
+      const dx = comp === 0 ? 0 : h2, dy = comp === 0 ? h2 : 0, f = comp === 0 ? this.u : this.v, pf = comp === 0 ? this.pu : this.pv, off = comp === 0 ? n : 1;
+      for (let k = 0; k < N; k++) {
+        const x = Math.min(Math.max(pos[2 * k], h), (nx - 1) * h), y = Math.min(Math.max(pos[2 * k + 1], h), (ny - 1) * h);
+        const x0 = Math.min(Math.floor((x - dx) * h1), nx - 2), tx = ((x - dx) - x0 * h) * h1, x1 = Math.min(x0 + 1, nx - 2);
+        const y0 = Math.min(Math.floor((y - dy) * h1), ny - 2), ty = ((y - dy) - y0 * h) * h1, y1 = Math.min(y0 + 1, ny - 2);
+        const sx = 1 - tx, sy = 1 - ty, d0 = sx * sy, d1 = tx * sy, d2 = tx * ty, d3 = sx * ty;
+        const n0 = x0 * n + y0, n1 = x1 * n + y0, n2 = x1 * n + y1, n3 = x0 * n + y1;
+        const v0 = (ct[n0] !== AIR || ct[n0 - off] !== AIR) ? 1 : 0, v1 = (ct[n1] !== AIR || ct[n1 - off] !== AIR) ? 1 : 0;
+        const v2 = (ct[n2] !== AIR || ct[n2 - off] !== AIR) ? 1 : 0, v3 = (ct[n3] !== AIR || ct[n3 - off] !== AIR) ? 1 : 0;
+        const w = v0 * d0 + v1 * d1 + v2 * d2 + v3 * d3;
+        if (w > 0) {
+          const pic = (v0 * d0 * f[n0] + v1 * d1 * f[n1] + v2 * d2 * f[n2] + v3 * d3 * f[n3]) / w;
+          const corr = (v0 * d0 * (f[n0] - pf[n0]) + v1 * d1 * (f[n1] - pf[n1]) + v2 * d2 * (f[n2] - pf[n2]) + v3 * d3 * (f[n3] - pf[n3])) / w;
+          const vOld = vel[2 * k + comp];
+          vel[2 * k + comp] = (1 - flip) * pic + flip * (vOld + corr);
+        }
+      }
+    }
+  }
+
+  /* 手指搅动：x,y 为屏幕坐标 */
+  stir(x, y, vx, vy, rad, k) {
+    const gx = x - this.ox, gy = y - this.oy, r2 = rad * rad, pos = this.pos, vel = this.vel;
+    for (let i = 0; i < this.numP; i++) {
+      const dx = pos[2 * i] - gx, dy = pos[2 * i + 1] - gy, d2 = dx * dx + dy * dy;
+      if (d2 > r2) continue;
+      const w = 1 - Math.sqrt(d2) / rad, f = w * w * k;
+      vel[2 * i] += (vx - vel[2 * i]) * f; vel[2 * i + 1] += (vy - vel[2 * i + 1]) * f;
+    }
+  }
+
+  /* 屏幕坐标处的归一化水密度（0=空气，1≈满水） */
+  densityAt(sx, sy) {
+    const gx = sx - this.ox, gy = sy - this.oy, h = this.h;
+    const i = Math.floor(gx / h), j = Math.floor(gy / h);
+    if (i < 1 || j < 1 || i >= this.nx - 1 || j >= this.ny - 1) return 0;
+    return this.dens[i * this.n + j] / (this.restDens || 3.2);
+  }
+
+  /* 写入渲染缓冲：每粒子 4 个 float -> 屏幕x, 屏幕y, 孤立度, 速度/1000 */
+  fillRender(out) {
+    const N = this.numP, pos = this.pos, vel = this.vel, iso = this.iso, ox = this.ox, oy = this.oy;
+    for (let i = 0, o = 0; i < N; i++, o += 4) {
+      out[o] = pos[2 * i] + ox; out[o + 1] = pos[2 * i + 1] + oy; out[o + 2] = iso[i];
+      out[o + 3] = Math.sqrt(vel[2 * i] * vel[2 * i] + vel[2 * i + 1] * vel[2 * i + 1]) * 0.001;
+    }
+    return N;
+  }
+}
+
+/* ===== 次级系统：波纹（沿水面传播的波动方程）、水花飞沫、气泡 ===== */
+class Ripple {
+  constructor(W, H) { this.fl = null; this.build(W, H); }
+  link(f) { this.fl = f; }
+  resize(W, H) { this.build(W, H); }
+  build(W, H) {
+    const rc = Math.max(6, Math.sqrt(W * H / 7500));
+    this.rw = Math.max(8, Math.round(W / rc)); this.rh = Math.max(8, Math.round(H / rc));
+    this.cx = W / this.rw; this.cy = H / this.rh;                 // 格子尺寸，近似正方
+    const n = this.rw * this.rh;
+    this.h = new Float32Array(n); this.v = new Float32Array(n); this.m = new Float32Array(n);
+    this.tex = new Uint8Array(n * 4);
+    this.c2 = (230 / this.cx) * (230 / this.cx);                   // (波速/格长)²
+  }
+  /* 高斯扰动：ampPx 为高度(px)，rad 为半径(px) */
+  impulse(x, y, ampPx, rad) {
+    const w = this.rw, hh = this.rh, cx = this.cx, cy = this.cy, s = rad || cx * 1.3, k = 1 / (2 * s * s);
+    const ri = Math.ceil(s * 2.6 / cx), rj = Math.ceil(s * 2.6 / cy), ci = Math.floor(x / cx), cj = Math.floor(y / cy);
+    for (let j = Math.max(cj - rj, 0); j <= Math.min(cj + rj, hh - 1); j++) for (let i = Math.max(ci - ri, 0); i <= Math.min(ci + ri, w - 1); i++) {
+      const dx = (i + 0.5) * cx - x, dy = (j + 0.5) * cy - y, c = j * w + i;
+      this.h[c] += ampPx * Math.exp(-(dx * dx + dy * dy) * k) * (this.m[c] > 0.05 ? 1 : 0.35);
+    }
+  }
+  poke(x, y, amt, rad) { this.impulse(x, y, amt * 9, rad); }
+  step(f) {
+    f = f || this.fl; const dt = 1 / 60;
+    const w = this.rw, hh = this.rh, h = this.h, v = this.v, m = this.m, c2 = this.c2, cx = this.cx, cy = this.cy;
+    for (let j = 0; j < hh; j++) for (let i = 0; i < w; i++) {
+      const dn = f.densityAt((i + 0.5) * cx, (j + 0.5) * cy);
+      const a = Math.min(Math.max((dn - 0.2) / 0.35, 0), 1), b = Math.min(Math.max((dn - 0.7) / 0.3, 0), 1);
+      m[j * w + i] = a * (1 - 0.5 * b);
+    }
+    for (let j = 0; j < hh; j++) {
+      const jm = j > 0 ? j - 1 : j, jp = j < hh - 1 ? j + 1 : j;
+      for (let i = 0; i < w; i++) {
+        const im = i > 0 ? i - 1 : i, ip = i < w - 1 ? i + 1 : i, c = j * w + i, mm = m[c];
+        const lap = h[j * w + im] + h[j * w + ip] + h[jm * w + i] + h[jp * w + i] - 4 * h[c];
+        let vv = (v[c] + c2 * lap * dt * (0.15 + 0.85 * mm)) * (mm > 0.05 ? 0.9935 : 0.82);
+        v[c] = vv > 400 ? 400 : (vv < -400 ? -400 : vv);
+      }
+    }
+    for (let c = 0; c < h.length; c++) {
+      let x = h[c] + v[c] * dt; if (m[c] < 0.05) x *= 0.88;
+      h[c] = x > 9 ? 9 : (x < -9 ? -9 : x);
+    }
+  }
+  /* 打包为 RGBA8：R,G = 斜率，B = 高度 (±9px)；供着色器采样 */
+  pack() {
+    const w = this.rw, hh = this.rh, h = this.h, tex = this.tex, cx = this.cx, cy = this.cy;
+    for (let j = 0; j < hh; j++) {
+      const jm = j > 0 ? j - 1 : j, jp = j < hh - 1 ? j + 1 : j;
+      for (let i = 0; i < w; i++) {
+        const im = i > 0 ? i - 1 : i, ip = i < w - 1 ? i + 1 : i, c = j * w + i, o = 4 * c;
+        const sx = (h[j * w + ip] - h[j * w + im]) / (2 * cx), sy = (h[jp * w + i] - h[jm * w + i]) / (2 * cy);
+        tex[o] = Math.min(Math.max(128 + sx * 160, 0), 255); tex[o + 1] = Math.min(Math.max(128 + sy * 160, 0), 255);
+        tex[o + 2] = Math.min(Math.max(128 + h[c] * 14, 0), 255); tex[o + 3] = 255;
+      }
+    }
+    return tex;
+  }
+}
+
+/* 飞沫(1)与气泡(2)：紧凑数组，交换删除 */
+class Sprites {
+  constructor(max) {
+    this.max = max; this.n = 0; this.spawned = 0;
+    this.k = new Uint8Array(max);
+    this.x = new Float32Array(max); this.y = new Float32Array(max); this.vx = new Float32Array(max); this.vy = new Float32Array(max);
+    this.life = new Float32Array(max); this.life0 = new Float32Array(max); this.size = new Float32Array(max); this.age = new Float32Array(max);
+    this.buf = new Float32Array(max * 5);
+  }
+  add(kind, x, y, vx, vy, size, life) {
+    if (this.n >= this.max || this.spawned > 60) return -1;
+    const i = this.n++; this.spawned++;
+    this.k[i] = kind; this.x[i] = x; this.y[i] = y; this.vx[i] = vx; this.vy[i] = vy;
+    this.size[i] = size; this.life[i] = life; this.life0[i] = life; this.age[i] = 0;
+    return i;
+  }
+  kill(i) {
+    const l = --this.n; if (i === l) return;
+    this.k[i] = this.k[l]; this.x[i] = this.x[l]; this.y[i] = this.y[l]; this.vx[i] = this.vx[l]; this.vy[i] = this.vy[l];
+    this.life[i] = this.life[l]; this.life0[i] = this.life0[l]; this.size[i] = this.size[l]; this.age[i] = this.age[l];
+  }
+  drop(x, y, vx, vy, size) { return this.add(1, x, y, vx, vy, size, 1.6 + Math.random() * 1.4); }
+  bubble(x, y, size) { return this.add(2, x, y, (Math.random() - 0.5) * 24, (Math.random() - 0.5) * 24, size, 2.5 + Math.random() * 3); }
+
+  /* 水体撞上屏幕边框：飞溅水滴 + 气泡 + 波纹。hit 每组 5 个数：x,y,法线x,法线y,法向速度 */
+  splash(hit, hitN, ripple) {
+    for (let q = 0; q < hitN; q++) {
+      const o = q * 5, x = hit[o], y = hit[o + 1], nx = hit[o + 2], ny = hit[o + 3], sp = hit[o + 4];
+      if (Math.random() > 0.45 + sp / 2600) continue;
+      const cnt = Math.min(1 + Math.floor(sp / 380), 5), tx = -ny, ty = nx;
+      for (let j = 0; j < cnt; j++) {
+        const a = (Math.random() - 0.5) * 1.5, ca = Math.cos(a), sa = Math.sin(a);
+        const dx = nx * ca - ny * sa, dy = ny * ca + nx * sa, v = sp * (0.28 + Math.random() * 0.5);
+        this.drop(x + nx * 4, y + ny * 4, dx * v + tx * (Math.random() - 0.5) * 140, dy * v + ty * (Math.random() - 0.5) * 140, 1.3 + Math.random() * 2.2 + sp / 1400);
+      }
+      if (sp > 650 && Math.random() < 0.5) this.bubble(x + nx * 10, y + ny * 10, 1.6 + Math.random() * 2.4);
+      ripple.impulse(x + nx * 6, y + ny * 6, Math.min(sp * 0.0032, 6.5), 11);
+    }
+  }
+  /* 浪尖飞沫：从快速运动的表层粒子里抽样 */
+  mist(f, tries) {
+    const N = f.numP; if (!N) return;
+    for (let t = 0; t < tries; t++) {
+      const i = (Math.random() * N) | 0, vx = f.vel[2 * i], vy = f.vel[2 * i + 1];
+      if (vx * vx + vy * vy < 620 * 620 || f.iso[i] < 0.12) continue;
+      this.drop(f.pos[2 * i] + f.ox, f.pos[2 * i + 1] + f.oy, vx * 0.85 + (Math.random() - 0.5) * 90, vy * 0.85 + (Math.random() - 0.5) * 90, 1 + Math.random() * 1.8);
+    }
+  }
+  update(dt, f, ax, ay, ripple, W, H) {
+    this.spawned = 0;
+    this.mist(f, 8);
+    const gl = Math.hypot(ax, ay) || 1, ux = -ax / gl, uy = -ay / gl;
+    for (let i = this.n - 1; i >= 0; i--) {
+      this.age[i] += dt; this.life[i] -= dt;
+      if (this.life[i] <= 0) { this.kill(i); continue; }
+      if (this.k[i] === 1) {
+        let vx = this.vx[i] + ax * dt, vy = this.vy[i] + ay * dt;
+        const dm = 1 - 0.35 * dt; vx *= dm; vy *= dm;
+        let x = this.x[i] + vx * dt, y = this.y[i] + vy * dt;
+        if (x < 0 || x > W) { vx *= -0.35; x = x < 0 ? 0 : W; this.life[i] *= 0.8; }
+        if (y < 0 || y > H) { vy *= -0.35; y = y < 0 ? 0 : H; this.life[i] *= 0.8; }
+        this.vx[i] = vx; this.vy[i] = vy; this.x[i] = x; this.y[i] = y;
+        if (this.age[i] > 0.07 && f.densityAt(x, y) > 0.62) {               // 落回水面：波纹、气泡、冠状二次水花
+          const sp = Math.hypot(vx, vy);
+          ripple.impulse(x, y, Math.min(0.5 + sp * 0.0024, 3.6), 8);
+          if (sp > 380 && Math.random() < 0.45) this.bubble(x, y, 1.2 + Math.random() * 1.8);
+          if (sp > 520 && Math.random() < 0.35) this.drop(x, y, vx * -0.18 + (Math.random() - 0.5) * 120 + ux * sp * 0.25, vy * -0.18 + (Math.random() - 0.5) * 120 + uy * sp * 0.25, this.size[i] * 0.6);
+          this.kill(i);
+        }
+      } else {
+        const wob = Math.sin(this.age[i] * 7 + i) * 60;
+        let vx = this.vx[i] + (ux * 520 - uy * wob) * dt, vy = this.vy[i] + (uy * 520 + ux * wob) * dt;
+        const dm = 1 - 3.2 * dt; vx *= dm; vy *= dm;
+        const x = this.x[i] + vx * dt, y = this.y[i] + vy * dt;
+        this.vx[i] = vx; this.vy[i] = vy; this.x[i] = x; this.y[i] = y;
+        if (this.age[i] > 0.15 && f.densityAt(x, y) < 0.38) { if (Math.random() < 0.5) ripple.impulse(x, y, 0.5, 7); this.kill(i); }
+      }
+    }
+  }
+  /* 渲染缓冲：每个精灵 5 个 float：x,y,尺寸,类型,透明度 */
+  fill() {
+    const b = this.buf; let o = 0;
+    for (let i = 0; i < this.n; i++) {
+      b[o++] = this.x[i]; b[o++] = this.y[i]; b[o++] = this.size[i]; b[o++] = this.k[i]; b[o++] = Math.min(1, this.life[i] / this.life0[i] * 3);
+    }
+    return this.n;
+  }
+}
+
+/* 飞沫重新落入水面（FLIP 孤立粒子并回水体）-> 波纹与气泡 */
+function scanReentry(f, sprites, ripple) {
+  let c = 0;
+  for (let i = 0; i < f.numP && c < 6; i++) {
+    if (f.prevIso[i] > 0.7 && f.iso[i] < 0.25) {
+      const sp = Math.hypot(f.vel[2 * i], f.vel[2 * i + 1]);
+      if (sp > 420) {
+        c++; const x = f.pos[2 * i] + f.ox, y = f.pos[2 * i + 1] + f.oy;
+        ripple.impulse(x, y, Math.min(sp * 0.0026, 4), 9);
+        if (Math.random() < 0.4) sprites.bubble(x, y, 1.4 + Math.random() * 2);
+      }
+    }
+  }
+}
+
+/* ===== GLSL 着色器 ===== */
+const GLSL_PRE = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+float sstep(float a, float b, float x){ float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
+`;
+
+/* ① 粒子 -> 密度场（加法混合）。R=密度  G=速度加权密度  B=孤立粒子加权密度 */
+const VS_DENS = `
+attribute vec4 a_p;
+uniform vec2 u_css; uniform float u_dscale; uniform float u_h;
+varying float v_iso; varying float v_sp;
+void main(){
+  vec2 c = a_p.xy / u_css * 2.0 - 1.0; c.y = -c.y;
+  gl_Position = vec4(c, 0.0, 1.0);
+  gl_PointSize = max(mix(1.7, 0.62, a_p.z) * u_h * 2.0 / u_dscale, 2.0);
+  v_iso = a_p.z; v_sp = a_p.w;
+}`;
+const FS_DENS = GLSL_PRE + `
+varying float v_iso; varying float v_sp;
+void main(){
+  vec2 q = gl_PointCoord * 2.0 - 1.0; float d2 = dot(q, q);
+  if (d2 > 1.0) discard;
+  float w = 1.0 - d2; w *= w;
+  float a = w * mix(0.14, 0.95, v_iso);
+  gl_FragColor = vec4(a, a * clamp(v_sp / 1.5, 0.0, 1.0), a * v_iso, 1.0);
+}`;
+
+/* ② 全屏合成：天空、海水、光柱、焦散、浪花、边框 */
+const VS_QUAD = `
+attribute vec2 a_pos; varying vec2 v_uv;
+void main(){ v_uv = a_pos * 0.5 + 0.5; gl_Position = vec4(a_pos, 0.0, 1.0); }`;
+
+const GLSL_DENS = `
+uniform sampler2D u_dens; uniform vec2 u_css; uniform float u_margin; uniform float u_cornerR; uniform float u_h;
+float sdRR(vec2 p){                       // 圆角屏幕的有向距离（内部为正）
+  vec2 h = u_css * 0.5, q = abs(p - h) - (h - vec2(u_cornerR));
+  return -(length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - u_cornerR);
+}
+/* 靠墙处密度只有半边粒子贡献，按离墙距离补偿，使水体贴紧屏幕边框 */
+vec4 densRaw(vec2 p){
+  vec2 q = clamp(p, vec2(u_margin), u_css - vec2(u_margin));
+  vec4 d = texture2D(u_dens, vec2(q.x / u_css.x, 1.0 - q.y / u_css.y));
+  return d * (1.0 + 0.85 * (1.0 - sstep(0.0, 1.5 * u_h, sdRR(q))));
+}
+float dens(vec2 p){ return densRaw(p).r; }
+float densRay(vec2 p){
+  if (p.x < 0.0 || p.y < 0.0 || p.x > u_css.x || p.y > u_css.y) return 0.0;
+  return dens(p);
+}
+
+`;
+
+/* ②-a 沿阳光方向穿过海水的水柱长度（低分辨率，精细步进，结果平滑无噪点） */
+const FS_DEPTH = GLSL_PRE + GLSL_DENS + `
+varying vec2 v_uv; uniform vec2 u_L; uniform float u_dstep;
+void main(){
+  vec2 P = vec2(v_uv.x, 1.0 - v_uv.y) * u_css;
+  float len = 0.0;
+  float jit = fract(sin(dot(P, vec2(12.9898, 78.233))) * 43758.5453);   // 逐像素错开步进起点，消除条纹
+  for (int i = 0; i < 96; i++) {
+    vec2 q = P + u_L * ((float(i) + jit) * u_dstep);
+    len += u_dstep * sstep(0.48, 0.62, densRay(q));
+  }
+  gl_FragColor = vec4(clamp(len / (0.9 * u_css.y), 0.0, 1.0), 0.0, 0.0, 1.0);
+}`;
+
+const FS_COMP = GLSL_PRE + GLSL_DENS + `
+varying vec2 v_uv;
+uniform sampler2D u_ripple; uniform sampler2D u_depth;
+uniform vec2 u_dtex;
+uniform float u_time; uniform vec2 u_up; uniform vec2 u_L; uniform vec2 u_sunPos;
+uniform float u_sun; uniform float u_rdisp;
+
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + 11.7; a *= 0.5; } return s; }
+
+vec3 rip(vec2 p){ return texture2D(u_ripple, p / u_css).rgb - 0.5; }
+float caustic(vec2 uv, float t){
+  vec2 p = mod(uv * 6.28318, 6.28318) - 250.0;
+  vec2 i = p; float c = 1.0;
+  for (int n = 0; n < 4; n++) {
+    float tt = t * (1.0 - (3.5 / float(n + 1)));
+    i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
+    c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / 0.005), p.y / (cos(i.y + tt) / 0.005)));
+  }
+  c /= 4.0; c = 1.17 - pow(c, 1.4);
+  return clamp(pow(abs(c), 8.0), 0.0, 1.0);
+}
+
+vec3 skyCol(vec2 p, float t){
+  float hg = dot(p - 0.5 * u_css, u_up) / u_css.y + 0.5;
+  float k = clamp((hg - 0.30) / 0.70, 0.0, 1.0);
+  vec3 hor = vec3(0.93, 0.90, 0.80), mid = vec3(0.60, 0.82, 0.93), zen = vec3(0.20, 0.50, 0.80);
+  vec3 c = mix(hor, mid, sstep(0.0, 0.35, k));
+  c = mix(c, zen, sstep(0.30, 1.0, k));
+  vec2 sp = (p - u_sunPos) / u_css.y;
+  float sd = length(sp);
+  c += vec3(1.0, 0.86, 0.58) * (exp(-sd * 3.2) * 0.45 + exp(-sd * 11.0) * 0.55) * u_sun;
+  c = mix(c, vec3(1.0, 0.98, 0.9), sstep(0.055, 0.045, sd) * min(u_sun * 1.5, 1.0));
+  vec2 cq = vec2(dot(p, vec2(-u_up.y, u_up.x)), dot(p, u_up)) / u_css.y;
+  float cl = fbm(cq * vec2(2.4, 4.0) + vec2(t * 0.012, 3.0));
+  float cm = sstep(0.52, 0.78, cl) * sstep(0.2, 0.6, k) * 0.55;
+  c = mix(c, vec3(1.0, 0.99, 0.97), cm);
+  return c;
+}
+
+void main(){
+  vec2 P = vec2(v_uv.x, 1.0 - v_uv.y) * u_css;
+  float t = mod(u_time, 900.0);
+  vec3 r0 = rip(P);
+  /* 先由密度梯度求水面法线；波纹高度沿法线推动水面轮廓，斜率让水下的光柱与焦散一起摇晃 */
+  float e = max(0.4 * u_h, 2.5);
+  vec2 gP = vec2(dens(P + vec2(e, 0.0)) - dens(P - vec2(e, 0.0)), dens(P + vec2(0.0, e)) - dens(P - vec2(0.0, e)));
+  float glP = length(gP);
+  vec2 nIn = glP > 1e-4 ? gP / glP : vec2(0.0);
+  vec2 Pd = P + nIn * (r0.z * 18.0) + r0.xy * u_rdisp * 0.7;
+
+  /* 密度（五点平滑）与法线 */
+  vec4 c4 = densRaw(Pd);
+  float dL = dens(Pd - vec2(e, 0.0)), dR = dens(Pd + vec2(e, 0.0)), dU = dens(Pd - vec2(0.0, e)), dD = dens(Pd + vec2(0.0, e));
+  float dd = 0.4 * c4.r + 0.15 * (dL + dR + dU + dD);
+  vec2 grad = vec2(dR - dL, dD - dU);
+  float gl = length(grad);
+  vec2 nOut = gl > 1e-4 ? -grad / gl : u_up;
+  float wm = sstep(0.50, 0.64, dd);
+
+  vec3 col;
+  if (wm < 0.003) {
+    col = skyCol(P, t);
+  } else {
+    /* 沿阳光方向穿过海水的水柱长度 -> 透射率 */
+    float Hs = u_css.y;
+    vec2 tx = 3.0 / u_css;                                    // 深度图为 1/3 分辨率，五点平滑抹掉抖动噪点
+    float dsm = 0.4 * texture2D(u_depth, v_uv).r + 0.15 * (texture2D(u_depth, v_uv + vec2(tx.x, 0.0)).r + texture2D(u_depth, v_uv - vec2(tx.x, 0.0)).r
+                + texture2D(u_depth, v_uv + vec2(0.0, tx.y)).r + texture2D(u_depth, v_uv - vec2(0.0, tx.y)).r);
+    float len = dsm * 0.9 * Hs;
+    float T = exp(-len / (0.40 * Hs));
+    float depthF = 1.0 - exp(-len / (0.24 * Hs));
+
+    vec3 shallow = vec3(0.14, 0.68, 0.76), deep = vec3(0.02, 0.15, 0.31);
+    vec3 base = mix(shallow, deep, depthF);
+    base *= 0.62 + 0.55 * T;
+
+    /* 光柱：沿阳光方向的平行条带，随波纹与时间缓慢游动 */
+    vec2 perp = vec2(-u_L.y, u_L.x);
+    float s = dot(Pd, perp) / Hs + r0.z * 0.10;
+    float b1 = sin(s * 23.0 + t * 0.35 + 1.7 * sin(s * 5.3 - t * 0.21));
+    float b2 = sin(s * 39.0 - t * 0.27 + 2.1 * sin(s * 9.7 + t * 0.33));
+    float b3 = sin(s * 11.0 + t * 0.15);
+    float b = sstep(0.34, 0.92, 0.5 + 0.17 * b1 + 0.13 * b2 + 0.22 * b3);
+    vec3 sunC = vec3(1.0, 0.92, 0.72);
+    float shaft = (0.12 + 0.88 * b * b) * pow(T, 0.85);
+    col = base + sunC * shaft * 0.95 * u_sun;
+
+    /* 焦散：靠近容器壁（光线终点）处最强，水中也有微弱闪烁 */
+    vec2 D = -u_L;                                           // 光线行进方向
+    vec2 tw = vec2(D.x > 1e-4 ? (u_css.x - P.x) / D.x : (D.x < -1e-4 ? -P.x / D.x : 1e5),
+                   D.y > 1e-4 ? (u_css.y - P.y) / D.y : (D.y < -1e-4 ? -P.y / D.y : 1e5));
+    float tWall = max(min(tw.x, tw.y), 0.0);
+    float near = sstep(0.20 * Hs, 0.0, tWall);
+    vec2 cuv = Pd / Hs * 1.7;
+    float ca = caustic(cuv + r0.xy * 0.3, t * 0.55);
+    col += sunC * ca * T * u_sun * (0.10 + 0.78 * near);
+
+    /* 水面：天空反射的亮边、太阳高光与浪花 */
+    float band = wm * (1.0 - sstep(0.62, 0.92, dd));
+    float nl = clamp(dot(nOut, u_L), 0.0, 1.0);
+    vec3 N3 = normalize(vec3(nOut * 0.85 + r0.xy * 3.0, 0.55));
+    vec3 Lv = normalize(vec3(u_L * 0.55, 0.85));
+    float spec = pow(max(dot(N3, normalize(Lv + vec3(0.0, 0.0, 1.0))), 0.0), 40.0);
+    float edgeBright = band * (0.25 + 0.75 * nl);
+    col = mix(col, vec3(0.80, 0.96, 1.0), edgeBright * 0.36);
+    col += vec3(1.0, 0.95, 0.80) * spec * band * 1.6 * u_sun;
+
+    float sp = c4.r > 0.02 ? c4.g / c4.r : 0.0;
+    float fn = vnoise(Pd * 0.11 + t * 0.6);
+    float foam = sstep(0.34, 0.80, sp) * (0.35 + 0.65 * band) * (0.55 + 0.7 * fn);
+    foam += band * sstep(0.55, 0.95, c4.b / max(c4.r, 0.02)) * 0.6;
+    col = mix(col, vec3(0.96, 1.0, 1.0), clamp(foam, 0.0, 0.92));
+    col = mix(skyCol(P, t), col, wm);
+  }
+
+  /* 屏幕边框：圆角外为机身黑，沿边一道玻璃高光 */
+  float sd = sdRR(P);
+  col *= 1.0 - 0.22 * sstep(28.0, 0.0, sd);
+  col += vec3(0.7, 0.9, 1.0) * 0.10 * sstep(2.2, 0.0, abs(sd - 1.0));
+  col = mix(vec3(0.01, 0.02, 0.03), col, sstep(-0.5, 0.8, sd));
+  col += (hash(P + t) - 0.5) / 255.0;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+/* ③ 飞沫与气泡精灵 */
+const VS_SPR = `
+attribute vec4 a_s; attribute float a_a;
+uniform vec2 u_css; uniform float u_scale;
+varying float v_kind; varying float v_a;
+void main(){
+  vec2 c = a_s.xy / u_css * 2.0 - 1.0; c.y = -c.y;
+  gl_Position = vec4(c, 0.0, 1.0);
+  gl_PointSize = max(a_s.z * 2.0 * u_scale, 2.5);
+  v_kind = a_s.w; v_a = a_a;
+}`;
+const FS_SPR = GLSL_PRE + `
+varying float v_kind; varying float v_a;
+void main(){
+  vec2 q = gl_PointCoord * 2.0 - 1.0; float r = length(q);
+  if (r > 1.0) discard;
+  if (v_kind < 1.5) {
+    float a = sstep(1.0, 0.6, r);
+    float hl = sstep(0.6, 0.0, length(q - vec2(-0.3, -0.35)));
+    vec3 c = mix(vec3(0.66, 0.92, 1.0), vec3(1.0), hl * 0.85);
+    gl_FragColor = vec4(c * a * v_a, a * v_a * 0.96);
+  } else {
+    float ring = sstep(1.0, 0.80, r) - sstep(0.80, 0.52, r);
+    float hl = sstep(0.34, 0.0, length(q - vec2(-0.42, -0.42)));
+    float a = clamp(ring * 0.8 + hl * 0.75 + (1.0 - sstep(0.0, 0.9, r)) * 0.07, 0.0, 1.0) * v_a;
+    gl_FragColor = vec4(vec3(0.86, 0.97, 1.0) * a, a * 0.9);
+  }
+}`;
+
+/* ===== WebGL 渲染器（含 Canvas2D 兜底） ===== */
+class Renderer {
+  constructor(canvas, maxP, maxS) {
+    this.cv = canvas; this.maxP = maxP; this.maxS = maxS; this.ok = false; this.err = '';
+    this.dscale = 2; this.rw = 0; this.rh = 0; this.cssW = 1; this.cssH = 1; this.scale = 1;
+    const opt = { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' };
+    this.gl = canvas.getContext('webgl', opt) || canvas.getContext('experimental-webgl', opt);
+    if (!this.gl) { this.err = '无法创建 WebGL'; return; }
+    canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); this.lost = true; });
+    canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.initGL(); this.resize(this.cssW, this.cssH, this.scale); });
+    this.initGL();
+  }
+
+  compile(type, src) {
+    const gl = this.gl, s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || 'shader error');
+    return s;
+  }
+  program(vs, fs, attrs, unis) {
+    const gl = this.gl, p = gl.createProgram();
+    gl.attachShader(p, this.compile(gl.VERTEX_SHADER, vs)); gl.attachShader(p, this.compile(gl.FRAGMENT_SHADER, fs));
+    attrs.forEach((a, i) => gl.bindAttribLocation(p, i, a));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) || 'link error');
+    const u = {}; unis.forEach(n => u[n] = gl.getUniformLocation(p, n));
+    return { p, u };
+  }
+
+  initGL() {
+    const gl = this.gl;
+    try {
+      this.pDens = this.program(VS_DENS, FS_DENS, ['a_p'], ['u_css', 'u_dscale', 'u_h']);
+      this.pComp = this.program(VS_QUAD, FS_COMP, ['a_pos'], ['u_dens', 'u_ripple', 'u_depth', 'u_css', 'u_dtex', 'u_time', 'u_up', 'u_L', 'u_sunPos', 'u_sun', 'u_margin', 'u_cornerR', 'u_rdisp', 'u_h']);
+      this.pDepth = this.program(VS_QUAD, FS_DEPTH, ['a_pos'], ['u_dens', 'u_css', 'u_margin', 'u_cornerR', 'u_h', 'u_L', 'u_dstep']);
+      this.pSpr = this.program(VS_SPR, FS_SPR, ['a_s', 'a_a'], ['u_css', 'u_scale']);
+    } catch (e) { this.err = String(e.message || e); this.ok = false; return; }
+    this.bufP = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.bufP); gl.bufferData(gl.ARRAY_BUFFER, this.maxP * 16, gl.DYNAMIC_DRAW);
+    this.bufS = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.bufS); gl.bufferData(gl.ARRAY_BUFFER, this.maxS * 20, gl.DYNAMIC_DRAW);
+    this.bufQ = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.bufQ); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    this.texD = null; this.fbo = gl.createFramebuffer(); this.texP = null; this.fboP = gl.createFramebuffer();
+    this.texR = gl.createTexture(); this.ripW = 0; this.ripH = 0;
+    this.ok = true;
+  }
+
+  setMaxP(n) {
+    this.maxP = n; if (!this.ok) return;
+    const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this.bufP); gl.bufferData(gl.ARRAY_BUFFER, n * 16, gl.DYNAMIC_DRAW);
+  }
+
+  tex(w, h, data) {
+    const gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data || null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+
+  resize(cssW, cssH, scale) {
+    this.cssW = cssW; this.cssH = cssH; this.scale = scale;
+    const cv = this.cv; cv.width = Math.max(2, Math.round(cssW * scale)); cv.height = Math.max(2, Math.round(cssH * scale));
+    if (!this.ok) return;
+    const gl = this.gl;
+    this.dw = Math.max(32, Math.ceil(cssW / this.dscale)); this.dh = Math.max(32, Math.ceil(cssH / this.dscale));
+    if (this.texD) gl.deleteTexture(this.texD);
+    this.texD = this.tex(this.dw, this.dh, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texD, 0);
+    this.pw = Math.max(24, Math.ceil(cssW / 3)); this.ph = Math.max(32, Math.ceil(cssH / 3));
+    if (this.texP) gl.deleteTexture(this.texP);
+    this.texP = this.tex(this.pw, this.ph, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboP);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texP, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /* fr: {fluid, ripple, sprites, time, up:[x,y], L:[x,y], sunPos:[x,y], sun, np} */
+  draw(fr) {
+    if (!this.ok || this.lost) return;
+    const gl = this.gl, f = fr.fluid, W = this.cssW, H = this.cssH;
+    /* 粒子 -> 密度 */
+    const np = f.fillRender(fr.pbuf);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo); gl.viewport(0, 0, this.dw, this.dh);
+    gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    let U = this.pDens; gl.useProgram(U.p);
+    gl.uniform2f(U.u.u_css, W, H); gl.uniform1f(U.u.u_dscale, this.dscale); gl.uniform1f(U.u.u_h, f.h);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufP); gl.bufferSubData(gl.ARRAY_BUFFER, 0, fr.pbuf.subarray(0, np * 4));
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 16, 0);
+    gl.drawArrays(gl.POINTS, 0, np);
+    /* 波纹纹理 */
+    const rp = fr.ripple, rdata = rp.pack();
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.texR);
+    if (this.ripW !== rp.rw || this.ripH !== rp.rh) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, rp.rw, rp.rh, 0, gl.RGBA, gl.UNSIGNED_BYTE, rdata);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.ripW = rp.rw; this.ripH = rp.rh;
+    } else gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, rp.rw, rp.rh, gl.RGBA, gl.UNSIGNED_BYTE, rdata);
+    /* 光线穿水深度（低分辨率） */
+    gl.disable(gl.BLEND);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboP); gl.viewport(0, 0, this.pw, this.ph);
+    U = this.pDepth; gl.useProgram(U.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.texD);
+    gl.uniform1i(U.u.u_dens, 0); gl.uniform2f(U.u.u_css, W, H);
+    gl.uniform1f(U.u.u_margin, f.h * 0.6); gl.uniform1f(U.u.u_cornerR, f.cornerR); gl.uniform1f(U.u.u_h, f.h);
+    gl.uniform2f(U.u.u_L, fr.L[0], fr.L[1]); gl.uniform1f(U.u.u_dstep, 0.0105 * H);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufQ); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    /* 合成 */
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, this.cv.width, this.cv.height);
+    U = this.pComp; gl.useProgram(U.p);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.texP);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.texD);
+    gl.uniform1i(U.u.u_dens, 0); gl.uniform1i(U.u.u_ripple, 1); gl.uniform1i(U.u.u_depth, 2);
+    gl.uniform2f(U.u.u_css, W, H); gl.uniform2f(U.u.u_dtex, 1 / this.dw, 1 / this.dh);
+    gl.uniform1f(U.u.u_time, fr.time); gl.uniform2f(U.u.u_up, fr.up[0], fr.up[1]); gl.uniform2f(U.u.u_L, fr.L[0], fr.L[1]);
+    gl.uniform2f(U.u.u_sunPos, fr.sunPos[0], fr.sunPos[1]); gl.uniform1f(U.u.u_sun, fr.sun);
+    gl.uniform1f(U.u.u_margin, f.h * 0.6); gl.uniform1f(U.u.u_cornerR, f.cornerR);
+    gl.uniform1f(U.u.u_rdisp, Math.max(8, f.h * 1.3)); gl.uniform1f(U.u.u_h, f.h);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufQ); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    /* 飞沫与气泡 */
+    const ns = fr.sprites.fill();
+    if (ns > 0) {
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      U = this.pSpr; gl.useProgram(U.p);
+      gl.uniform2f(U.u.u_css, W, H); gl.uniform1f(U.u.u_scale, this.scale);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufS); gl.bufferSubData(gl.ARRAY_BUFFER, 0, fr.sprites.buf.subarray(0, ns * 5));
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 20, 0);
+      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 20, 16);
+      gl.drawArrays(gl.POINTS, 0, ns);
+      gl.disableVertexAttribArray(1); gl.disable(gl.BLEND);
+    }
+    gl.activeTexture(gl.TEXTURE0);
+  }
+}
+
+/* 没有 WebGL 时的简化画法：只保证页面仍可交互 */
+class Renderer2D {
+  constructor(canvas) { this.cv = canvas; this.ctx = canvas.getContext('2d'); this.ok = true; this.scale = 1; this.cssW = 1; this.cssH = 1; this.is2d = true; }
+  resize(w, h, s) { this.cssW = w; this.cssH = h; this.scale = s; this.cv.width = Math.round(w * s); this.cv.height = Math.round(h * s); }
+  draw(fr) {
+    const c = this.ctx, s = this.scale, f = fr.fluid, W = this.cssW, H = this.cssH;
+    c.setTransform(s, 0, 0, s, 0, 0);
+    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#8fc9e6'); g.addColorStop(1, '#eaf3ee');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(22,130,160,0.85)';
+    const r = f.h * 0.9;
+    for (let i = 0; i < f.numP; i++) { c.beginPath(); c.arc(f.pos[2 * i] + f.ox, f.pos[2 * i + 1] + f.oy, r, 0, 6.2832); c.fill(); }
+    c.fillStyle = 'rgba(255,255,255,0.9)';
+    const sp = fr.sprites; sp.fill();
+    for (let i = 0; i < sp.n; i++) { c.beginPath(); c.arc(sp.x[i], sp.y[i], Math.max(1.5, sp.size[i]), 0, 6.2832); c.fill(); }
+  }
+}
+
+/* ===== 运动输入：陀螺仪 / 加速度计 / 手指 / 演示摆动 =====
+   重力方向由 deviceorientation 的 beta、gamma 推得（两大平台一致），
+   再按屏幕旋转角换算到屏幕坐标（x 向右，y 向下）。 */
+const D2R = Math.PI / 180;
+function screenAngle() {
+  let a = 0;
+  if (screen.orientation && typeof screen.orientation.angle === 'number') a = screen.orientation.angle;
+  else if (typeof window.orientation === 'number') a = window.orientation;
+  return ((a % 360) + 360) % 360;
+}
+/* 设备坐标(x 右, y 上) -> 屏幕坐标(x 右, y 下) */
+function devToScreen(dx, dy, ang) {
+  switch (ang) {
+    case 90: return [-dy, -dx];
+    case 180: return [-dx, dy];
+    case 270: return [dy, dx];
+    default: return [dx, -dy];
+  }
+}
+
+class Motion {
+  constructor() {
+    this.mode = 'demo';                  // demo | finger | gyro
+    this.gx = 0; this.gy = 1;            // 平滑后的屏幕面内重力（模长 0..1）
+    this.lastDir = [0, 1];
+    this.flipX = false; this.flipY = false;
+    this.gd = null; this.hasOri = false; this.hasMot = false; this.attached = false;
+    this.msign = /iP(hone|ad|od)/.test(navigator.userAgent) ? -1 : 1; this.msAcc = 0;
+    this.lp = [0, 0, 0]; this.acc = [0, 0]; this.accRaw = [0, 0];
+    this.theta = 0; this.Om = 0; this.al = 0; this.thetaOk = false;
+    this.pointer = { x: 0, y: 0, down: false, tx: 0, ty: 1 };
+    this.dbg = { beta: 0, gamma: 0, m: 0, src: '-' };
+    this.onOri = e => {
+      if (e.beta == null || e.gamma == null) return;
+      this.hasOri = true; this.dbg.beta = e.beta; this.dbg.gamma = e.gamma;
+      const b = e.beta * D2R, g = e.gamma * D2R;
+      this.gd = [Math.sin(g) * Math.cos(b), -Math.sin(b), -Math.cos(g) * Math.cos(b)];
+    };
+    this.onMot = e => {
+      const a = e.acceleration, ag = e.accelerationIncludingGravity;
+      if (ag && ag.x != null && ag.y != null) {
+        this.hasMot = true;
+        if (this.gd && ag.z != null) {                       // 用姿态推得的重力校准加速度符号（Android 与 iOS 约定相反）
+          const dot = ag.x * this.gd[0] + ag.y * this.gd[1] + ag.z * this.gd[2];
+          if (Math.abs(dot) > 6) { this.msAcc = Math.max(-30, Math.min(30, this.msAcc + (dot < 0 ? 1 : -1))); if (Math.abs(this.msAcc) > 3) this.msign = this.msAcc > 0 ? 1 : -1; }
+        }
+        if (!this.hasOri) {                                  // 没有姿态事件时，用重力加速度推方向
+          const l = Math.hypot(ag.x, ag.y, ag.z || 0) || 1, s = -this.msign;
+          this.gd = [s * ag.x / l, s * ag.y / l, s * (ag.z || 0) / l];
+        }
+      }
+      let ax = null, ay = null;
+      if (a && a.x != null && a.y != null) { ax = a.x; ay = a.y; }
+      else if (ag && ag.x != null) {                         // 没有线性加速度：用重力加速度的高频部分估计
+        const k = 0.06; this.lp[0] += (ag.x - this.lp[0]) * k; this.lp[1] += (ag.y - this.lp[1]) * k;
+        ax = ag.x - this.lp[0]; ay = ag.y - this.lp[1];
+      }
+      if (ax != null) { this.accRaw[0] = ax * this.msign; this.accRaw[1] = ay * this.msign; }
+    };
+  }
+
+  /* 必须在用户点击中调用。返回 'ok' | 'denied' | 'unsupported' | 'nodata' */
+  async enable() {
+    const DOE = window.DeviceOrientationEvent, DME = window.DeviceMotionEvent;
+    if (!DOE && !DME) return 'unsupported';
+    try {
+      const reqs = [];
+      if (DOE && typeof DOE.requestPermission === 'function') reqs.push(DOE.requestPermission());
+      if (DME && typeof DME.requestPermission === 'function') reqs.push(DME.requestPermission());
+      if (reqs.length) { const r = await Promise.all(reqs.map(p => p.catch(() => 'denied'))); if (r.some(x => x !== 'granted')) return 'denied'; }
+    } catch (err) { return 'denied'; }
+    if (!this.attached) {
+      window.addEventListener('deviceorientation', this.onOri, true);
+      window.addEventListener('devicemotion', this.onMot, true);
+      this.attached = true;
+    }
+    const t0 = performance.now();
+    return await new Promise(res => {
+      const tick = () => { if (this.hasOri || this.hasMot) res('ok'); else if (performance.now() - t0 > 1800) res('nodata'); else setTimeout(tick, 60); };
+      tick();
+    });
+  }
+
+  setMode(m) { this.mode = m; }
+
+  pointerSet(x, y, down) { const p = this.pointer; p.x = x; p.y = y; p.down = down; }
+
+  /* 每个物理步前调用 -> {gx,gy,str,ax,ay,Om,al}；gx,gy 为单位方向，str 为重力强度(0..1) */
+  update(dt, t, W, H) {
+    let tx, ty, str = 1;
+    const ang = screenAngle();
+    if (this.mode === 'gyro' && this.gd) {
+      let [sr, sd] = devToScreen(this.gd[0], this.gd[1], ang);
+      if (this.flipX) sr = -sr; if (this.flipY) sd = -sd;
+      const m = Math.min(Math.hypot(sr, sd), 1);
+      this.dbg.m = m; this.dbg.src = this.hasOri ? '姿态' : '加速度';
+      if (m > 0.05) this.lastDir = [sr / m, sd / m];
+      tx = this.lastDir[0]; ty = this.lastDir[1]; str = 0.25 + 0.75 * m;
+    } else if (this.mode === 'finger') {
+      const p = this.pointer;
+      if (p.down) { const dx = p.x - W / 2, dy = p.y - H / 2, l = Math.hypot(dx, dy) || 1; tx = dx / l; ty = dy / l; this.lastDir = [tx, ty]; }
+      else { tx = 0; ty = 1; }
+    } else {                                                  // 演示：缓慢摆动
+      const amp = this.reduce ? 0.4 : 1, th = amp * (0.42 * Math.sin(t * 0.55) + 0.14 * Math.sin(t * 1.37 + 1.0));
+      tx = Math.sin(th); ty = Math.cos(th);
+    }
+    const k = 1 - Math.exp(-dt / (this.mode === 'gyro' ? 0.045 : 0.09));
+    this.gx += (tx * str - this.gx) * k; this.gy += (ty * str - this.gy) * k;
+    const mag = Math.hypot(this.gx, this.gy) || 1e-6;
+
+    /* 加速度（屏幕坐标，m/s²）：平滑 + 死区 */
+    let ax = 0, ay = 0;
+    if (this.mode === 'gyro' && this.hasMot) {
+      const [sr, sd] = devToScreen(this.accRaw[0], this.accRaw[1], ang);
+      const ka = 1 - Math.exp(-dt / 0.03);
+      this.acc[0] += (sr - this.acc[0]) * ka; this.acc[1] += (sd - this.acc[1]) * ka;
+      const dz = v => { const a = Math.abs(v); return a < 0.35 ? 0 : Math.sign(v) * Math.min(a - 0.35, 28); };
+      ax = dz(this.acc[0]); ay = dz(this.acc[1]);
+      if (this.flipX) ax = -ax; if (this.flipY) ay = -ay;
+    }
+
+    /* 角速度（绕屏幕法线，顺时针为正）与角加速度：由重力方向在屏幕内的转动推得 */
+    const th = Math.atan2(this.gy, this.gx);
+    if (this.thetaOk && mag > 0.3) {
+      let d = th - this.theta; d = Math.atan2(Math.sin(d), Math.cos(d));
+      const w = -d / Math.max(dt, 1e-3), kk = 1 - Math.exp(-dt / 0.07), prev = this.Om;
+      this.Om += (Math.max(-14, Math.min(14, w)) - this.Om) * kk;
+      const a = (this.Om - prev) / Math.max(dt, 1e-3);
+      this.al += (Math.max(-250, Math.min(250, a)) - this.al) * (1 - Math.exp(-dt / 0.1));
+    } else { this.Om *= 0.9; this.al *= 0.9; }
+    this.theta = th; this.thetaOk = true;
+    return { gx: this.gx / mag, gy: this.gy / mag, str: mag, ax, ay, Om: this.Om, al: this.al };
+  }
+}
+
+/* ===== 主程序：装配、交互、设置、循环 ===== */
+(() => {
+  const $ = id => document.getElementById(id);
+  const cv = $('sea');
+  const QUAL = {
+    low:  { hT: 13,   cap: 2400, iters: 20, scale: 0.62, spr: 300 },
+    mid:  { hT: 10.5, cap: 3600, iters: 28, scale: 1,    spr: 500 },
+    high: { hT: 9,    cap: 5200, iters: 34, scale: 0,    spr: 700 }
+  };
+  const S = { water: 45, grav: 100, shake: 100, sun: 100, q: 'mid', flipX: false, flipY: false };
+  try { Object.assign(S, JSON.parse(localStorage.getItem('tilt-sea') || '{}')); } catch (e) {}
+  const save = () => { try { localStorage.setItem('tilt-sea', JSON.stringify(S)); } catch (e) {} };
+
+  const motion = new Motion();
+  motion.flipX = !!S.flipX; motion.flipY = !!S.flipY;
+  const rmq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  motion.reduce = !!(rmq && rmq.matches);
+
+  let W = 0, H = 0, fluid, ripple, sprites, renderer, pbuf;
+  let iters = 28, scale = 1, G0 = 2000, simTime = 0;
+  const fr = { time: 0, up: [0, -1], L: [0, -1], sunPos: [0, 0], sun: 1 };
+  const dpr = () => Math.min(window.devicePixelRatio || 1, 2);
+
+  function params() {
+    const q = QUAL[S.q] || QUAL.mid;
+    return { hT: q.hT, cap: q.cap, iters: q.iters, scale: q.scale || Math.min(dpr(), 1.5), spr: q.spr };
+  }
+
+  function build() {
+    W = Math.max(200, window.innerWidth); H = Math.max(300, window.innerHeight);
+    const p = params(); iters = p.iters; scale = p.scale; G0 = 2.4 * Math.max(W, H);
+    fluid = new Fluid(W, H, p);
+    fluid.reset(S.water / 100, motion.gx, motion.gy || 1);
+    ripple = new Ripple(W, H); ripple.link(fluid);
+    sprites = new Sprites(p.spr);
+    pbuf = new Float32Array(fluid.maxP * 4);
+    if (!renderer) {
+      renderer = new Renderer(cv, fluid.maxP, p.spr);
+      if (!renderer.ok) { console.warn('WebGL 不可用：', renderer.err); renderer = new Renderer2D(cv); }
+    } else if (!renderer.is2d) renderer.setMaxP(fluid.maxP);
+    renderer.resize(W, H, scale);
+    fluid.q.iters = iters;
+  }
+
+  function onResize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (Math.abs(w - W) < 2 && Math.abs(h - H) < 2) return;
+    W = Math.max(200, w); H = Math.max(300, h); G0 = 2.4 * Math.max(W, H);
+    fluid.resize(W, H, S.water / 100, motion.gx, motion.gy || 1);
+    ripple.resize(W, H); ripple.link(fluid); sprites.n = 0;
+    if (pbuf.length < fluid.maxP * 4) { pbuf = new Float32Array(fluid.maxP * 4); if (!renderer.is2d) renderer.setMaxP(fluid.maxP); }
+    renderer.resize(W, H, scale);
+  }
+  let rzT = 0;
+  const onResizeSoon = () => { clearTimeout(rzT); rzT = setTimeout(onResize, 120); };
+  window.addEventListener('resize', onResizeSoon);
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
+
+  /* ---------- 触摸 / 鼠标：搅动水面 ---------- */
+  const ptr = { id: -1, down: false, x: 0, y: 0, vx: 0, vy: 0, t: 0 };
+  cv.addEventListener('pointerdown', e => {
+    if (ptr.down) return;
+    ptr.down = true; ptr.id = e.pointerId; ptr.x = e.clientX; ptr.y = e.clientY; ptr.vx = ptr.vy = 0; ptr.t = performance.now();
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    motion.pointerSet(ptr.x, ptr.y, true);
+    if (ripple) ripple.poke(ptr.x, ptr.y, -0.5, 24);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!ptr.down || e.pointerId !== ptr.id) return;
+    const now = performance.now(), dt = Math.max((now - ptr.t) / 1000, 0.008);
+    const vx = (e.clientX - ptr.x) / dt, vy = (e.clientY - ptr.y) / dt;
+    ptr.vx += (vx - ptr.vx) * 0.5; ptr.vy += (vy - ptr.vy) * 0.5;
+    ptr.x = e.clientX; ptr.y = e.clientY; ptr.t = now;
+    motion.pointerSet(ptr.x, ptr.y, true);
+  });
+  const up = e => { if (e.pointerId !== ptr.id) return; ptr.down = false; ptr.id = -1; motion.pointerSet(ptr.x, ptr.y, false); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* ---------- 物理一步 ---------- */
+  const env = { ax: 0, ay: 0, Om: 0, al: 0, cent: 0, eul: 0, cor: 0, cx: 0, cy: 0, flip: 0.9, hitMin: 380 };
+  let tick = 0, lastM = { gx: 0, gy: 1, str: 1 };
+  function simulate(dt) {
+    simTime += dt; tick++;
+    const m = motion.update(dt, simTime, W, H); lastM = m;
+    const gm = G0 * (S.grav / 100) * m.str, kAcc = G0 / 9.81 * (S.shake / 100);
+    let ax = m.gx * gm - m.ax * kAcc, ay = m.gy * gm - m.ay * kAcc;
+    const lim = 3.2 * G0, l = Math.hypot(ax, ay); if (l > lim) { ax *= lim / l; ay *= lim / l; }
+    const unit = (0.07 / W) * (G0 / 9.81) * 4 * (S.shake / 100);
+    env.ax = ax; env.ay = ay; env.Om = m.Om; env.al = m.al; env.cent = unit; env.eul = unit; env.cor = unit;
+    env.cx = W / 2; env.cy = H / 2; env.hitMin = 0.19 * G0;
+    if (ptr.down && motion.mode !== 'demo') {
+      const sp = Math.hypot(ptr.vx, ptr.vy);
+      fluid.stir(ptr.x, ptr.y, ptr.vx, ptr.vy, 64, 0.35);
+      if (sp > 160) {
+        ripple.poke(ptr.x, ptr.y, -Math.min(sp / 1600, 0.5), 20);
+        if (sp > 650 && fluid.densityAt(ptr.x, ptr.y) > 0.5 && Math.random() < 0.5)
+          sprites.add(1, ptr.x, ptr.y, ptr.vx * 0.3 + (Math.random() - 0.5) * 220, ptr.vy * 0.3 - 260 * (Math.random() + 0.3), 1.2 + Math.random() * 1.8, 1.6);
+      }
+      ptr.vx *= 0.9; ptr.vy *= 0.9;
+    }
+    fluid.step(dt, env);
+    if (fluid.hitN) sprites.splash(fluid.hit, fluid.hitN, ripple);
+    ripple.step(fluid);
+    if ((tick & 1) === 0) scanReentry(fluid, sprites, ripple);
+    sprites.update(dt, fluid, env.ax, env.ay, ripple, W, H);
+  }
+
+  /* ---------- 绘制 ---------- */
+  function render(t) {
+    const g = lastM, upx = -g.gx, upy = -g.gy, a = 0.38, c = Math.cos(a), s = Math.sin(a);
+    fr.fluid = fluid; fr.ripple = ripple; fr.sprites = sprites; fr.pbuf = pbuf; fr.time = t;
+    fr.up[0] = upx; fr.up[1] = upy;
+    fr.L[0] = upx * c - upy * s; fr.L[1] = upx * s + upy * c;
+    fr.sunPos[0] = W / 2 + fr.L[0] * 0.40 * H; fr.sunPos[1] = H / 2 + fr.L[1] * 0.40 * H;
+    fr.sun = S.sun / 100;
+    renderer.draw(fr);
+  }
+
+  /* ---------- 主循环与自适应画质 ---------- */
+  let last = performance.now(), acc = 0, ema = 16.7, slow = 0, lastDeg = 0, frames = 0, fpsT = performance.now(), fps = 60;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (document.hidden) { last = now; return; }
+    const raw = now - last; last = now;
+    acc += Math.min(raw, 100) / 1000;
+    let n = 0; const step = 1 / 60;
+    while (acc >= step && n < 2) { simulate(step); acc -= step; n++; }
+    if (acc > step) acc = 0;
+    render(now / 1000);
+    ema += (Math.min(raw, 100) - ema) * 0.05;
+    frames++; if (now - fpsT > 1000) { fps = frames * 1000 / (now - fpsT); frames = 0; fpsT = now; if (dbgOn) updateReadout(); }
+    if (!window.__noAdapt && now > 2500 && ema > 27) { slow++; } else slow = Math.max(0, slow - 2);
+    if (slow > 80 && now - lastDeg > 2500) {
+      lastDeg = now; slow = 0;
+      if (iters > 16) { iters -= 6; fluid.q.iters = iters; }
+      else if (scale > 0.5 && !renderer.is2d) { scale *= 0.85; renderer.resize(W, H, scale); }
+    }
+  }
+
+  /* ---------- 界面 ---------- */
+  const chip = $('chip'), chipText = $('chipText'), intro = $('intro'), sheet = $('sheet'), toastEl = $('toast');
+  let toastT = 0;
+  function toast(msg, ms) {
+    toastEl.textContent = msg; toastEl.hidden = false; clearTimeout(toastT);
+    toastT = setTimeout(() => { toastEl.hidden = true; }, ms || 4200);
+  }
+  function setChip(text, ok) { chipText.textContent = text; chip.classList.toggle('ok', !!ok); }
+  async function wake() { try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch (e) {} }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && motion.mode !== 'demo') wake(); });
+
+  function enter(mode) {
+    motion.setMode(mode); intro.hidden = true; wake();
+    if (mode === 'gyro') { setChip('陀螺仪 · 已连接', true); toast('倾斜、转动或晃动手机试试', 3200); }
+    else setChip('手指模式', false);
+  }
+  $('startBtn').addEventListener('click', async () => {
+    const b = $('startBtn'); b.disabled = true; b.textContent = '正在连接传感器…';
+    const r = await motion.enable();
+    b.disabled = false; b.textContent = '开启陀螺仪';
+    if (r === 'ok') { enter('gyro'); return; }
+    enter('finger');
+    toast(r === 'denied' ? '运动传感器权限被拒绝，已切换为手指模式。可在系统设置里允许浏览器访问“运动与方向”后刷新页面。'
+        : r === 'unsupported' ? '此设备或浏览器不支持陀螺仪，已切换为手指模式。'
+        : '没有收到陀螺仪数据。嵌入预览、非 HTTPS 页面或系统关闭了运动传感器都会这样，已切换为手指模式。用浏览器直接打开页面可启用陀螺仪。', 8000);
+  });
+  $('fingerBtn').addEventListener('click', () => enter('finger'));
+
+  const gear = $('gearBtn');
+  function toggleSheet(open) {
+    sheet.hidden = !open; gear.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) intro.hidden = true;
+  }
+  gear.addEventListener('click', () => toggleSheet(sheet.hidden));
+  $('closeBtn').addEventListener('click', () => toggleSheet(false));
+  $('refillBtn').addEventListener('click', () => { fluid.reset(S.water / 100, lastM.gx, lastM.gy); sprites.n = 0; ripple.h.fill(0); ripple.v.fill(0); });
+
+  function bindRange(id, outId, key, apply) {
+    const el = $(id), out = $(outId); el.value = S[key]; out.textContent = S[key] + '%';
+    el.addEventListener('input', () => { S[key] = +el.value; out.textContent = el.value + '%'; if (apply === 'live') save(); });
+    el.addEventListener('change', () => { S[key] = +el.value; save(); if (apply === 'refill') $('refillBtn').click(); });
+  }
+  bindRange('rngWater', 'outWater', 'water', 'refill');
+  bindRange('rngGrav', 'outGrav', 'grav', 'live');
+  bindRange('rngShake', 'outShake', 'shake', 'live');
+  bindRange('rngSun', 'outSun', 'sun', 'live');
+  $('selQ').value = S.q;
+  $('selQ').addEventListener('change', e => { S.q = e.target.value; save(); build(); });
+  $('chkFlipX').checked = !!S.flipX; $('chkFlipY').checked = !!S.flipY;
+  $('chkFlipX').addEventListener('change', e => { S.flipX = motion.flipX = e.target.checked; save(); });
+  $('chkFlipY').addEventListener('change', e => { S.flipY = motion.flipY = e.target.checked; save(); });
+
+  let dbgOn = false; const ro = $('readout');
+  $('chkDebug').addEventListener('change', e => { dbgOn = e.target.checked; ro.hidden = !dbgOn; if (dbgOn) updateReadout(); });
+  function updateReadout() {
+    const d = motion.dbg, ar = Math.hypot(motion.accRaw[0], motion.accRaw[1]);
+    ro.textContent = `模式 ${motion.mode} · 传感器 ${motion.hasOri ? '姿态✓' : '姿态✗'} ${motion.hasMot ? '加速度✓' : '加速度✗'}\n` +
+      `β ${d.beta.toFixed(0)}° γ ${d.gamma.toFixed(0)}° · 屏幕角 ${screenAngle()}° · 面内重力 ${(d.m * 100).toFixed(0)}%\n` +
+      `重力 (${lastM.gx.toFixed(2)}, ${lastM.gy.toFixed(2)}) · 晃动 ${ar.toFixed(1)} m/s² · 符号 ${motion.msign > 0 ? '+' : '−'}\n` +
+      `${fps.toFixed(0)} fps · 粒子 ${fluid.numP} · 网格 ${fluid.cols}×${fluid.rows} · 压力迭代 ${iters} · 渲染比例 ${scale.toFixed(2)}${renderer.is2d ? ' · 2D 兜底' : ''}`;
+    ro.style.whiteSpace = 'pre-line';
+  }
+
+  /* ---------- 启动 ---------- */
+  build();
+  window.__sea = { motion, S, simulate, get fluid() { return fluid; }, get ripple() { return ripple; }, get sprites() { return sprites; }, get renderer() { return renderer; }, get env() { return env; }, stats: () => ({ fps, ema, iters, scale, np: fluid.numP, speed: fluid.stats.speed, sprites: sprites.n, err: renderer.err || '' }), toast };
+  requestAnimationFrame(t => { last = t; frame(t); });
+})();
+
+</script>
+</body>
+</html>
